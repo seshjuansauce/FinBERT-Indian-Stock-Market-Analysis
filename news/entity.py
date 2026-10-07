@@ -224,3 +224,29 @@ def model_input(title: str, target: str, entity_markers: bool = True, other_mark
     for s, e, k in sorted(spans, reverse=True):          # right-to-left keeps offsets valid
         t = f"{t[:s]}<{k}> {t[s:e]} </{k}>{t[e:]}"
     return TARGET_NAME.get(target, "the company"), t
+
+
+# ───────────── "stocks in focus" roundups: pull the target's own paragraph from the body ─────────────
+FOCUS_TITLE = re.compile(r"in focus|stocks? to watch|buzzing stocks|stocks? in news|hot stocks|trending stocks", re.I)
+# a roundup item starts with "Name :", "Name:", "Name -", "Name |" or "Name (TCS):" at a sentence/line boundary
+_ITEM = re.compile(r"(?:^|(?<=[.\n!?\"”])\s*)([A-Z][\w&\.\-’' ]{1,45}?(?:\s*\([^)]{1,25}\))?)\s*(?::|\s[-–|]\s)\s+")
+
+_SENT = re.compile(r"(?<=[.!?”\"])\s+(?=[A-Z“\"])|(?<=[a-z0-9%)])(?=[A-Z][a-z]+ [a-z])(?<!Rs)(?<!U\.S)")
+
+def focus_paragraph(body: str, target: str, max_chars: int = 600) -> tuple[str, str]:
+    """(text about the target inside a roundup body, method). method: 'item' = the roundup's own
+    'Name : …' paragraph; 'sentences' = every sentence naming the target; '' = not found."""
+    if not body: return "", ""
+    rx = _AL.get(target, [])
+    if target in _NOT and _NOT[target].search(body): rx = []   # tax-TCS etc.
+    items = list(_ITEM.finditer(body))
+    for i, m in enumerate(items):
+        if any(r.search(m.group(1)) for r in rx):
+            end = items[i + 1].start() if i + 1 < len(items) else len(body)
+            txt = body[m.end():end].strip()
+            if len(txt) > 40: return txt[:max_chars], "item"
+    sents = [x.strip() for x in _SENT.split(body) if any(r.search(x) for r in rx)]
+    # drop the boilerplate intro that just lists names ("…Infosys, TCS, Bajaj Finance among others will be in focus…")
+    sents = [x for x in sents if not (FOCUS_TITLE.search(x) and len(mentions(x)) + x.count(",") >= 3)]
+    txt = " ".join(sents)
+    return (txt[:max_chars], "sentences") if len(txt) > 40 else ("", "")

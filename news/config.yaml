@@ -9,7 +9,7 @@ companies:
     nse: TCS
     title_terms: ['"Tata Consultancy Services"', 'TCS']
     must_match: '(?i)tata consultancy|\btcs\b'
-    exclude: '(?i)tax collected at source|\btcs (?:rate|deduction|provisions?|credit|refund|on (?:sale|foreign|lrs|remittance))\b|section 206c|\btds\b'
+    exclude: '(?i)tax collected at source|\btcs (?:rate|deduction|provisions?|credit|refund|on (?:sale|foreign|lrs|remittance))\b|section 206c|tax collect|collected at source|\bcbdt\b|\bstt\b|\d+ ?% tcs|\btcs (?:rules?|collected|regime)\b|\btds\b'
   INFY:
     nse: INFY
     title_terms: ['Infosys']

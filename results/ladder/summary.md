@@ -6,45 +6,53 @@ News corpus ends 2026-03-30; test period capped there. Placebo = mean of 20 with
 ## validation
 
 ```
-                           rung   n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b
-                     R0 GJR raw 369 0.3394   0.9429 0.0688             NaN             NaN             NaN
-             R0c GJR calibrated 369 0.3042   0.8360 0.0773 -3.33 (p=0.001)             NaN             NaN
-               R0b +HAR +market 369 0.3095   0.8571 0.0793             NaN +0.74 (p=0.456)             NaN
-                  R1 +attention 369 0.3005   0.8424 0.0907             NaN             NaN -0.77 (p=0.440)
-P1 placebo (shuffled attention) 369 0.3104   0.8592 0.0816             NaN             NaN +0.82 (p=0.415)
+                           rung   n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b        DM vs R1      DM vs R2_A
+                     R0 GJR raw 369 0.3394   0.9429 0.0688             NaN             NaN             NaN             NaN             NaN
+             R0c GJR calibrated 369 0.3042   0.8360 0.0773 -3.33 (p=0.001)             NaN             NaN             NaN             NaN
+               R0b +HAR +market 369 0.3095   0.8571 0.0793             NaN +0.74 (p=0.456)             NaN             NaN             NaN
+                  R1 +attention 369 0.3005   0.8424 0.0907             NaN             NaN -0.77 (p=0.440)             NaN             NaN
+             R2_A +sentiment(A) 369 0.3116   0.8580 0.0775             NaN             NaN +0.18 (p=0.859) +1.59 (p=0.111)             NaN
+             R2_C +sentiment(C) 369 0.3164   0.8626 0.0763             NaN             NaN +0.56 (p=0.578)             NaN +0.68 (p=0.497)
+P1 placebo (shuffled attention) 369 0.3104   0.8592 0.0816             NaN             NaN +0.82 (p=0.415)             NaN             NaN
 ```
 
 ## test
 
 ```
-                           rung   n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b
-                     R0 GJR raw 548 0.4398   0.9872 0.0863             NaN             NaN             NaN
-             R0c GJR calibrated 548 0.4551   0.9100 0.0780 +0.96 (p=0.335)             NaN             NaN
-               R0b +HAR +market 548 0.4377   0.8993 0.0969             NaN -0.94 (p=0.348)             NaN
-                  R1 +attention 548 0.4273   0.8893 0.1120             NaN             NaN -0.81 (p=0.419)
-P1 placebo (shuffled attention) 548 0.4378   0.9006 0.0953             NaN             NaN +0.11 (p=0.912)
+                           rung   n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b        DM vs R1      DM vs R2_A
+                     R0 GJR raw 548 0.4398   0.9872 0.0863             NaN             NaN             NaN             NaN             NaN
+             R0c GJR calibrated 548 0.4551   0.9100 0.0780 +0.96 (p=0.335)             NaN             NaN             NaN             NaN
+               R0b +HAR +market 548 0.4377   0.8993 0.0969             NaN -0.94 (p=0.348)             NaN             NaN             NaN
+                  R1 +attention 548 0.4273   0.8893 0.1120             NaN             NaN -0.81 (p=0.419)             NaN             NaN
+             R2_A +sentiment(A) 548 0.4323   0.8869 0.1096             NaN             NaN -0.37 (p=0.710) +1.02 (p=0.310)             NaN
+             R2_C +sentiment(C) 548 0.4331   0.8901 0.1063             NaN             NaN -0.31 (p=0.756)             NaN +0.41 (p=0.681)
+P1 placebo (shuffled attention) 548 0.4378   0.9006 0.0953             NaN             NaN +0.11 (p=0.912)             NaN             NaN
 ```
 
 ## test · results days
 
 ```
-                           rung  n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b
-                     R0 GJR raw 20 0.7784   0.9942 0.0025             NaN             NaN             NaN
-             R0c GJR calibrated 20 1.0515   1.0739 0.0001 +2.67 (p=0.008)             NaN             NaN
-               R0b +HAR +market 20 1.1183   1.0812 0.0036             NaN +1.56 (p=0.118)             NaN
-                  R1 +attention 20 0.5165   0.9852 0.0045             NaN             NaN -2.34 (p=0.019)
-P1 placebo (shuffled attention) 20 1.1252   1.0859 0.0015             NaN             NaN +0.55 (p=0.581)
+                           rung  n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b        DM vs R1      DM vs R2_A
+                     R0 GJR raw 20 0.7784   0.9942 0.0025             NaN             NaN             NaN             NaN             NaN
+             R0c GJR calibrated 20 1.0515   1.0739 0.0001 +2.67 (p=0.008)             NaN             NaN             NaN             NaN
+               R0b +HAR +market 20 1.1183   1.0812 0.0036             NaN +1.56 (p=0.118)             NaN             NaN             NaN
+                  R1 +attention 20 0.5165   0.9852 0.0045             NaN             NaN -2.34 (p=0.019)             NaN             NaN
+             R2_A +sentiment(A) 20 0.5089   0.9811 0.0048             NaN             NaN -2.35 (p=0.019) -0.57 (p=0.572)             NaN
+             R2_C +sentiment(C) 20 0.5021   0.9824 0.0051             NaN             NaN -2.32 (p=0.020)             NaN -0.36 (p=0.716)
+P1 placebo (shuffled attention) 20 1.1252   1.0859 0.0015             NaN             NaN +0.55 (p=0.581)             NaN             NaN
 ```
 
 ## test · no-news days
 
 ```
-                           rung   n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b
-                     R0 GJR raw 130 0.5103   1.0391 0.0556             NaN             NaN             NaN
-             R0c GJR calibrated 130 0.5360   0.9604 0.0515 +0.57 (p=0.571)             NaN             NaN
-               R0b +HAR +market 130 0.4644   0.9377 0.0839             NaN -1.03 (p=0.303)             NaN
-                  R1 +attention 130 0.4812   0.9244 0.0836             NaN             NaN +1.15 (p=0.249)
-P1 placebo (shuffled attention) 130 0.4628   0.9381 0.0833             NaN             NaN -0.91 (p=0.362)
+                           rung   n  qlike  rmse_ln  mz_r2        DM vs R0       DM vs R0c       DM vs R0b        DM vs R1      DM vs R2_A
+                     R0 GJR raw 130 0.5103   1.0391 0.0556             NaN             NaN             NaN             NaN             NaN
+             R0c GJR calibrated 130 0.5360   0.9604 0.0515 +0.57 (p=0.571)             NaN             NaN             NaN             NaN
+               R0b +HAR +market 130 0.4644   0.9377 0.0839             NaN -1.03 (p=0.303)             NaN             NaN             NaN
+                  R1 +attention 130 0.4812   0.9244 0.0836             NaN             NaN +1.15 (p=0.249)             NaN             NaN
+             R2_A +sentiment(A) 130 0.4862   0.9139 0.0939             NaN             NaN +0.96 (p=0.337) +0.48 (p=0.630)             NaN
+             R2_C +sentiment(C) 130 0.4900   0.9187 0.0866             NaN             NaN +1.05 (p=0.293)             NaN +1.37 (p=0.170)
+P1 placebo (shuffled attention) 130 0.4628   0.9381 0.0833             NaN             NaN -0.91 (p=0.362)             NaN             NaN
 ```
 
 ## R1 coefficients, validation period (standardised features, HAC t-stats)

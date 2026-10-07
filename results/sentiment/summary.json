@@ -1,0 +1,340 @@
+{
+ "label_source": "PROVISIONAL \u2014 Claude's hidden drafts for 148 of 148 rows",
+ "runs": [
+  {
+   "run": "A_full",
+   "seed": 0,
+   "encoder": "prosus",
+   "trained": false,
+   "format": "full",
+   "epoch": 0,
+   "dev_macro_f1": null,
+   "train_rows": 0,
+   "minutes": 0.0,
+   "dev": {
+    "n": 68,
+    "acc": 0.75,
+    "macro_f1": 0.7385879252886927,
+    "f1_positive": 0.782608695652174,
+    "f1_negative": 0.7272727272727273,
+    "f1_neutral": 0.7058823529411765,
+    "sign_flips": 7,
+    "confusion": [
+     [
+      27,
+      3,
+      3
+     ],
+     [
+      4,
+      12,
+      1
+     ],
+     [
+      5,
+      1,
+      12
+     ]
+    ]
+   },
+   "test": {
+    "n": 148,
+    "acc": 0.7567567567567568,
+    "macro_f1": 0.7565550980185126,
+    "f1_positive": 0.7272727272727273,
+    "f1_negative": 0.7619047619047619,
+    "f1_neutral": 0.7804878048780488,
+    "sign_flips": 9,
+    "confusion": [
+     [
+      40,
+      5,
+      10
+     ],
+     [
+      4,
+      24,
+      2
+     ],
+     [
+      11,
+      4,
+      48
+     ]
+    ],
+    "macro_f1_co_mention": 0.721111111111111,
+    "n_co_mention": 32,
+    "macro_f1_list_member": 0.8566618566618566,
+    "n_list_member": 51,
+    "macro_f1_primary": 0.6223908918406073,
+    "n_primary": 65
+   },
+   "pairs": {
+    "n": 40,
+    "acc": 0.675,
+    "macro_f1": 0.4487743557510999,
+    "f1_positive": 0.6486486486486487,
+    "f1_negative": 0.6976744186046512,
+    "f1_neutral": 0.0,
+    "sign_flips": 13,
+    "confusion": [
+     [
+      12,
+      8,
+      0
+     ],
+     [
+      5,
+      15,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "pair_acc": 0.4,
+    "by_test": {
+     "concessive_main_first": 0.875,
+     "concessive_concession_first": 0.875,
+     "even_as": 0.75,
+     "adversative_after_but": 0.375,
+     "entity_switch": 0.5
+    }
+   }
+  },
+  {
+   "run": "B",
+   "seed": 0,
+   "encoder": "prosus",
+   "trained": true,
+   "format": "pair_tocm",
+   "epoch": 3,
+   "dev_macro_f1": 0.8217565990503425,
+   "train_rows": 3410,
+   "minutes": 4.74,
+   "dev": {
+    "n": 68,
+    "acc": 0.8382352941176471,
+    "macro_f1": 0.8217565990503425,
+    "f1_positive": 0.8732394366197183,
+    "f1_negative": 0.8823529411764706,
+    "f1_neutral": 0.7096774193548387,
+    "sign_flips": 2,
+    "confusion": [
+     [
+      31,
+      1,
+      1
+     ],
+     [
+      1,
+      15,
+      1
+     ],
+     [
+      6,
+      1,
+      11
+     ]
+    ]
+   },
+   "test": {
+    "n": 148,
+    "acc": 0.8108108108108109,
+    "macro_f1": 0.8085560811473492,
+    "f1_positive": 0.8141592920353983,
+    "f1_negative": 0.7941176470588235,
+    "f1_neutral": 0.8173913043478261,
+    "sign_flips": 7,
+    "confusion": [
+     [
+      46,
+      5,
+      4
+     ],
+     [
+      2,
+      27,
+      1
+     ],
+     [
+      10,
+      6,
+      47
+     ]
+    ],
+    "macro_f1_co_mention": 0.753968253968254,
+    "n_co_mention": 32,
+    "macro_f1_list_member": 0.9023569023569024,
+    "n_list_member": 51,
+    "macro_f1_primary": 0.6610322289835474,
+    "n_primary": 65
+   },
+   "pairs": {
+    "n": 40,
+    "acc": 0.85,
+    "macro_f1": 0.5666666666666667,
+    "f1_positive": 0.85,
+    "f1_negative": 0.85,
+    "f1_neutral": 0.0,
+    "sign_flips": 6,
+    "confusion": [
+     [
+      17,
+      3,
+      0
+     ],
+     [
+      3,
+      17,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "pair_acc": 0.75,
+    "by_test": {
+     "concessive_main_first": 1.0,
+     "concessive_concession_first": 1.0,
+     "even_as": 1.0,
+     "adversative_after_but": 0.875,
+     "entity_switch": 0.375
+    }
+   }
+  },
+  {
+   "run": "C",
+   "seed": 0,
+   "encoder": "dapt",
+   "trained": true,
+   "format": "pair_tocm",
+   "epoch": 2,
+   "dev_macro_f1": 0.8266983561101208,
+   "train_rows": 3410,
+   "minutes": 5.07,
+   "dev": {
+    "n": 68,
+    "acc": 0.8382352941176471,
+    "macro_f1": 0.8266983561101208,
+    "f1_positive": 0.8787878787878788,
+    "f1_negative": 0.8235294117647058,
+    "f1_neutral": 0.7777777777777778,
+    "sign_flips": 3,
+    "confusion": [
+     [
+      29,
+      2,
+      2
+     ],
+     [
+      1,
+      14,
+      2
+     ],
+     [
+      3,
+      1,
+      14
+     ]
+    ]
+   },
+   "test": {
+    "n": 148,
+    "acc": 0.8378378378378378,
+    "macro_f1": 0.8391026492866377,
+    "f1_positive": 0.8173913043478261,
+    "f1_negative": 0.847457627118644,
+    "f1_neutral": 0.8524590163934426,
+    "sign_flips": 6,
+    "confusion": [
+     [
+      47,
+      3,
+      5
+     ],
+     [
+      3,
+      25,
+      2
+     ],
+     [
+      10,
+      1,
+      52
+     ]
+    ],
+    "macro_f1_co_mention": 0.7805128205128206,
+    "n_co_mention": 32,
+    "macro_f1_list_member": 0.9285182427401341,
+    "n_list_member": 51,
+    "macro_f1_primary": 0.7526455026455027,
+    "n_primary": 65
+   },
+   "pairs": {
+    "n": 40,
+    "acc": 0.875,
+    "macro_f1": 0.582861931699141,
+    "f1_positive": 0.8648648648648649,
+    "f1_negative": 0.8837209302325582,
+    "f1_neutral": 0.0,
+    "sign_flips": 5,
+    "confusion": [
+     [
+      16,
+      4,
+      0
+     ],
+     [
+      1,
+      19,
+      0
+     ],
+     [
+      0,
+      0,
+      0
+     ]
+    ],
+    "pair_acc": 0.8,
+    "by_test": {
+     "concessive_main_first": 1.0,
+     "concessive_concession_first": 1.0,
+     "even_as": 1.0,
+     "adversative_after_but": 1.0,
+     "entity_switch": 0.375
+    }
+   }
+  }
+ ],
+ "comparisons": {
+  "B - A_full": {
+   "diff": 0.05200098312883661,
+   "ci95": [
+    -0.0012894606379214046,
+    0.1067381260470367
+   ],
+   "p_le_0": 0.0285
+  },
+  "C - B": {
+   "diff": 0.030546568139288466,
+   "ci95": [
+    -0.022218608921099604,
+    0.08781627436655126
+   ],
+   "p_le_0": 0.1335
+  },
+  "C - A_full": {
+   "diff": 0.08254755126812507,
+   "ci95": [
+    0.03169830678362901,
+    0.13886504571539746
+   ],
+   "p_le_0": 0.0005
+  }
+ }
+}

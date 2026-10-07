@@ -96,7 +96,7 @@ def daily(art: pd.DataFrame, trading_days: pd.DatetimeIndex, sent_col: str | Non
         # carry on the calendar-day series of non-roundup news (causal), sampled at each trading day
         cal = nf.assign(sw=nf[sent_col] * nf["relevance"]).groupby("date").agg(sw=("sw", "sum"), w=("relevance", "sum"))
         cal = pd.DataFrame({"sent": cal["sw"] / cal["w"], "w": cal["w"]})
-        c = carry(cal).reindex(pd.date_range(min(cal.index.min(), td.min()), td.max())).ffill(limit=0)
+        c = carry(cal).reindex(pd.date_range(min(cal.index.min(), td.min()), td.max()))
         d["carry"] = c.reindex(td).values
         d[["sent", "mag", "sent_min", "focus_para_sent", "carry"]] = d[["sent", "mag", "sent_min", "focus_para_sent", "carry"]].fillna(0.0)
         d["focus_x_carry"] = d["n_focus"] * d["carry"]

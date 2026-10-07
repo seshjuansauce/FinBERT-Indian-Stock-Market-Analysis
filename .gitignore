@@ -10,3 +10,4 @@ venv/
 *.log
 results/**/preds_*.csv
 ~$*
+results/ladder/forecasts.csv

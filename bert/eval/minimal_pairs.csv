@@ -1,0 +1,41 @@
+pair_id,test,title,target,label
+0,concessive_main_first,TCS rises 3% despite weak Q3 results,TCS,positive
+0,concessive_main_first,TCS falls 3% despite strong Q3 results,TCS,negative
+1,concessive_concession_first,"Despite weak Q3 results, TCS rises 3%",TCS,positive
+1,concessive_concession_first,"Despite strong Q3 results, TCS falls 3%",TCS,negative
+2,even_as,TCS rises 3% even as weak Q3 results weigh on peers,TCS,positive
+2,even_as,TCS falls 3% even as peers report strong Q3 results,TCS,negative
+3,adversative_after_but,"TCS reports weak Q3 results, but brokerages stay bullish",TCS,positive
+3,adversative_after_but,"TCS reports strong Q3 results, but brokerages turn cautious",TCS,negative
+4,entity_switch,"Infosys falls 3%, TCS rises 3%",TCS,positive
+4,entity_switch,"Infosys rises 3%, TCS falls 3%",TCS,negative
+5,concessive_main_first,TCS jumps 5% despite an earnings miss,TCS,positive
+5,concessive_main_first,TCS slips 2% despite record deal wins,TCS,negative
+6,concessive_concession_first,"Despite an earnings miss, TCS jumps 5%",TCS,positive
+6,concessive_concession_first,"Despite record deal wins, TCS slips 2%",TCS,negative
+7,even_as,TCS jumps 5% even as earnings miss weigh on peers,TCS,positive
+7,even_as,TCS slips 2% even as peers report record deal wins,TCS,negative
+8,adversative_after_but,"TCS reports an earnings miss, but brokerages stay bullish",TCS,positive
+8,adversative_after_but,"TCS reports record deal wins, but brokerages turn cautious",TCS,negative
+9,entity_switch,"Infosys slips 2%, TCS jumps 5%",TCS,positive
+9,entity_switch,"Infosys jumps 5%, TCS slips 2%",TCS,negative
+10,concessive_main_first,TCS gains 2% despite margin pressure,TCS,positive
+10,concessive_main_first,TCS tanks 5% despite a revenue beat,TCS,negative
+11,concessive_concession_first,"Despite margin pressure, TCS gains 2%",TCS,positive
+11,concessive_concession_first,"Despite a revenue beat, TCS tanks 5%",TCS,negative
+12,even_as,TCS gains 2% even as margin pressure weigh on peers,TCS,positive
+12,even_as,TCS tanks 5% even as peers report a revenue beat,TCS,negative
+13,adversative_after_but,"TCS reports margin pressure, but brokerages stay bullish",TCS,positive
+13,adversative_after_but,"TCS reports a revenue beat, but brokerages turn cautious",TCS,negative
+14,entity_switch,"Infosys tanks 5%, TCS gains 2%",TCS,positive
+14,entity_switch,"Infosys gains 2%, TCS tanks 5%",TCS,negative
+15,concessive_main_first,TCS rallies 4% despite a guidance cut,TCS,positive
+15,concessive_main_first,TCS drops 4% despite margin expansion,TCS,negative
+16,concessive_concession_first,"Despite a guidance cut, TCS rallies 4%",TCS,positive
+16,concessive_concession_first,"Despite margin expansion, TCS drops 4%",TCS,negative
+17,even_as,TCS rallies 4% even as guidance cut weigh on peers,TCS,positive
+17,even_as,TCS drops 4% even as peers report margin expansion,TCS,negative
+18,adversative_after_but,"TCS reports a guidance cut, but brokerages stay bullish",TCS,positive
+18,adversative_after_but,"TCS reports margin expansion, but brokerages turn cautious",TCS,negative
+19,entity_switch,"Infosys drops 4%, TCS rallies 4%",TCS,positive
+19,entity_switch,"Infosys rallies 4%, TCS drops 4%",TCS,negative

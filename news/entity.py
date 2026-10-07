@@ -176,3 +176,51 @@ def analyse(title: str, description: str, target: str) -> dict:
     return dict(title_norm=t, role=role, target_span=span, in_list=in_list, n_tracked=len(m_title), article_type=atype, relevance=rel,
                 move_signal=move_signal(sig_text) if atype in ("market_wrap", "live_updates", "stocks_to_watch", "other") or role == "primary" else 0,
                 reco_signal=reco_signal(t), analyst_signal=analyst_signal(t))
+
+
+# ───────────── model input: typed entity markers + contrast-word tags ─────────────
+# Input to the sentiment model is a pair:  text_a = target name,  text_b = marked headline
+#   <t> … </t>  every mention of the target          <o> … </o>  every other tracked / global IT peer
+#   <c> … </c>  concessive connective (main clause decides, wherever it sits)
+#   <a> … </a>  adversative connective (clause after it usually carries the weight)
+# Markers use existing wordpieces (<, t, >, /) so no new embeddings are needed.
+PEERS = {  # global peers: marked as <o>, never a target, not counted in roles
+    "ACN":   [r"\baccenture\b"],
+    "CTSH":  [r"\bcognizant\b"],
+    "CAP":   [r"\bcapgemini\b"],
+    "LTIM":  [r"\blti ?mindtree\b", r"\bltim\b", r"\bmindtree\b"],
+    "MPHASIS": [r"\bmphasis\b"],
+}
+TARGET_NAME = {"TCS": "tcs", "INFY": "infosys", "WIPRO": "wipro", "HCLTECH": "hcltech", "TECHM": "tech mahindra"}
+CONCESSIVE = re.compile(r"\b(?:despite|in spite of|even as|even though|although|though|notwithstanding)\b", re.I)
+ADVERSATIVE = re.compile(r"\b(?:but(?! for\b)|however)\b|(?<=[,;] )yet\b", re.I)  # 'but for' = except; bare 'yet' is usually temporal
+_ALL_AL = {**_AL, **{c: [re.compile(a, re.I) for a in al] for c, al in PEERS.items()}}
+
+def all_mentions(text: str) -> list[tuple[int, int, str]]:
+    """Every (start, end, company) occurrence of tracked companies and global peers, non-overlapping."""
+    hits = []
+    for c, rxs in _ALL_AL.items():
+        if c in _NOT and _NOT[c].search(text):
+            continue
+        hits += [(m.start(), m.end(), c) for rx in rxs for m in rx.finditer(text)]
+    hits.sort(key=lambda h: (h[0], -(h[1] - h[0])))
+    out, last = [], -1
+    for s, e, c in hits:
+        if s >= last: out.append((s, e, c)); last = e
+    return out
+
+def model_input(title: str, target: str, entity_markers: bool = True, other_markers: bool = True,
+                contrast_tags: bool = True) -> tuple[str, str]:
+    """(text_a, text_b) for the sentence-pair sentiment model. Flags exist for the input-format ablation."""
+    t = normalise(title)
+    spans = []
+    if entity_markers or other_markers:
+        for s, e, c in all_mentions(t):
+            if c == target and entity_markers: spans.append((s, e, "t"))
+            elif c != target and other_markers: spans.append((s, e, "o"))
+    if contrast_tags:
+        spans += [(m.start(), m.end(), "c") for m in CONCESSIVE.finditer(t)]
+        spans += [(m.start(), m.end(), "a") for m in ADVERSATIVE.finditer(t)]
+    for s, e, k in sorted(spans, reverse=True):          # right-to-left keeps offsets valid
+        t = f"{t[:s]}<{k}> {t[s:e]} </{k}>{t[e:]}"
+    return TARGET_NAME.get(target, "the company"), t

@@ -18,22 +18,24 @@ SEED, N_TRAIN, N_TEST = 42, 400, 150
 
 def clean(t): return re.sub(r"\s+", " ", html.unescape(t or "")).strip()
 
-def pool():
-    cfg = yaml.safe_load(open(ROOT / "news" / "config.yaml"))["companies"]["TCS"]
+def pool(target: str = "TCS"):
+    cfg = yaml.safe_load(open(ROOT / "news" / "config.yaml"))["companies"][target]
     u = " union all ".join(f"select '{s}' src, try_cast(date as date) d, title, news from "
                            f"read_csv('{RAW / (s + '_raw.csv')}', all_varchar=true)"
                            for s in ["businessstandard", "economictimes", "financialexpress", "moneycontrol"])
     df = duckdb.sql(f"select * from ({u}) where d between '2020-01-01' and '2024-12-31' and title is not null").df()
     df["title"] = df["title"].map(clean); df["news"] = df["news"].map(clean)
-    m = df["title"].str.contains(cfg["must_match"], regex=True) & ~df["title"].str.contains(cfg["exclude"], regex=True)
+    m = df["title"].str.contains(cfg["must_match"], regex=True)
+    if cfg.get("exclude"):   # empty pattern would match everything
+        m &= ~df["title"].str.contains(cfg["exclude"], regex=True)
     df = df[m].copy()
     df["norm"] = df["title"].str.lower().str.replace(r"[^a-z0-9 ]", "", regex=True).str.strip()
     df = df.sort_values("d").drop_duplicates("norm")
     rows = []
     for r in df.itertuples():
-        a = analyse(r.title, r.news[:300], "TCS")
+        a = analyse(r.title, r.news[:300], target)
         if a["relevance"] <= 0: continue
-        rows.append({"id": hashlib.md5(r.title.encode()).hexdigest()[:10], "date": str(r.d)[:10], "source": r.src,
+        rows.append({"target": target, "id": hashlib.md5(r.title.encode()).hexdigest()[:10], "date": str(r.d)[:10], "source": r.src,
                      "title": r.title, "snippet": r.news[:280], "target_span": a["target_span"], "role": a["role"],
                      "article_type": a["article_type"], "cue": int(bool(a["move_signal"] or a["reco_signal"] or a["analyst_signal"]))})
     return pd.DataFrame(rows)

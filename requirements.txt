@@ -1,0 +1,15 @@
+pandas
+numpy
+pyyaml
+duckdb
+yfinance
+sqlalchemy
+psycopg2-binary
+huggingface_hub
+torch>=2.2
+transformers>=4.40
+arch>=7.0
+statsmodels
+scikit-learn
+matplotlib
+jupyterlab

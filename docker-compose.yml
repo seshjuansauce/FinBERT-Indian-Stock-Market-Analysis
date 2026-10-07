@@ -1,0 +1,28 @@
+# data/ and models/ live on the host so downloads and trained weights survive container restarts.
+# Secrets come from .env (optional; needed only for the HF news download / newsdata.io).
+x-common: &common
+  build: .
+  image: finbert-indian-stock:latest
+  env_file:
+    - path: .env
+      required: false
+  volumes:
+    - ./data:/app/data
+    - ./models:/app/models
+    - ./notebooks:/app/notebooks
+    - hf-cache:/app/.hf-cache
+
+services:
+  finbert:
+    <<: *common
+
+  notebook:
+    <<: *common
+    entrypoint: ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser",
+                 "--allow-root", "--ServerApp.token=", "--notebook-dir=/app"]
+    command: []
+    ports:
+      - "8888:8888"
+
+volumes:
+  hf-cache:

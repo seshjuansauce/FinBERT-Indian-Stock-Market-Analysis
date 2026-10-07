@@ -1,0 +1,37 @@
+# Companies + keyword sets for news pulls. Edit freely.
+# `title_terms`  : searched with qInTitle (precise).  `body_terms`: searched with q (broader).
+# `must_match`   : regex an article's title/description must match to be kept (relevance guard).
+# `exclude`      : regex that drops an article (e.g. "TCS" = Tax Collected at Source).
+language: en
+countries: [in]            # leave [] for global; India keeps Indian outlets
+companies:
+  TCS:
+    nse: TCS
+    title_terms: ['"Tata Consultancy Services"', 'TCS']
+    must_match: '(?i)tata consultancy|\btcs\b'
+    exclude: '(?i)tax collected at source|\btcs (?:rate|deduction|provisions?|credit|refund|on (?:sale|foreign|lrs|remittance))\b|section 206c|\btds\b'
+  INFY:
+    nse: INFY
+    title_terms: ['Infosys']
+    must_match: '(?i)infosys'
+    exclude: ''
+  WIPRO:
+    nse: WIPRO
+    title_terms: ['Wipro']
+    must_match: '(?i)wipro'
+    exclude: ''
+  HCLTECH:
+    nse: HCLTECH
+    title_terms: ['"HCL Technologies"', 'HCLTech']
+    must_match: '(?i)hcl ?tech'
+    exclude: '(?i)hcl infosystems'
+  TECHM:
+    nse: TECHM
+    title_terms: ['"Tech Mahindra"']
+    must_match: '(?i)tech mahindra'
+    exclude: ''
+  SECTOR:   # Indian IT sector-wide news (demand, visas, deal flow, Nifty IT)
+    nse: NIFTYIT
+    title_terms: ['"Nifty IT"', '"IT stocks"', '"IT sector"', '"Indian IT"']
+    must_match: '(?i)nifty it|indian it|it stocks|it services|it sector|h-?1b'
+    exclude: ''

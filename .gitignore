@@ -1,0 +1,10 @@
+.env
+data
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+models
+.venv/
+venv/
+.DS_Store
+*.log

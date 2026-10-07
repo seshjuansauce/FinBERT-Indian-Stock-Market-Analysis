@@ -8,3 +8,5 @@ models
 venv/
 .DS_Store
 *.log
+results/**/preds_*.csv
+~$*

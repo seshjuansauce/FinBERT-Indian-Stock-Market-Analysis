@@ -183,6 +183,7 @@ def analyse(title: str, description: str, target: str) -> dict:
 #   <t> … </t>  every mention of the target          <o> … </o>  every other tracked / global IT peer
 #   <c> … </c>  concessive connective (main clause decides, wherever it sits)
 #   <a> … </a>  adversative connective (clause after it usually carries the weight)
+#   <m> … </m>  market index (Sensex, Nifty, Nifty IT, Bank Nifty …): "this clause is about the market, not the company"
 # Markers use existing wordpieces (<, t, >, /) so no new embeddings are needed.
 PEERS = {  # global peers: marked as <o>, never a target, not counted in roles
     "ACN":   [r"\baccenture\b"],
@@ -193,6 +194,7 @@ PEERS = {  # global peers: marked as <o>, never a target, not counted in roles
 }
 TARGET_NAME = {"TCS": "tcs", "INFY": "infosys", "WIPRO": "wipro", "HCLTECH": "hcltech", "TECHM": "tech mahindra"}
 CONCESSIVE = re.compile(r"\b(?:despite|in spite of|even as|even though|although|though|notwithstanding)\b", re.I)
+MARKET_INDEX = re.compile(r"\b(?:gift nifty|bank nifty|nifty(?: ?(?:it|50|500|bank|auto|fmcg|pharma|metal|midcap(?: ?\d+)?|smallcap(?: ?\d+)?|next ?50))?|sensex|dalal street|d-street)\b", re.I)
 ADVERSATIVE = re.compile(r"\b(?:but(?! for\b)|however)\b|(?<=[,;] )yet\b", re.I)  # 'but for' = except; bare 'yet' is usually temporal
 _ALL_AL = {**_AL, **{c: [re.compile(a, re.I) for a in al] for c, al in PEERS.items()}}
 
@@ -210,7 +212,7 @@ def all_mentions(text: str) -> list[tuple[int, int, str]]:
     return out
 
 def model_input(title: str, target: str, entity_markers: bool = True, other_markers: bool = True,
-                contrast_tags: bool = True) -> tuple[str, str]:
+                contrast_tags: bool = True, market_tags: bool = True) -> tuple[str, str]:
     """(text_a, text_b) for the sentence-pair sentiment model. Flags exist for the input-format ablation."""
     t = normalise(title)
     spans = []
@@ -221,6 +223,10 @@ def model_input(title: str, target: str, entity_markers: bool = True, other_mark
     if contrast_tags:
         spans += [(m.start(), m.end(), "c") for m in CONCESSIVE.finditer(t)]
         spans += [(m.start(), m.end(), "a") for m in ADVERSATIVE.finditer(t)]
+    if market_tags:
+        taken = [(s, e) for s, e, _ in spans]
+        spans += [(m.start(), m.end(), "m") for m in MARKET_INDEX.finditer(t)
+                  if not any(s < m.end() and m.start() < e for s, e in taken)]
     for s, e, k in sorted(spans, reverse=True):          # right-to-left keeps offsets valid
         t = f"{t[:s]}<{k}> {t[s:e]} </{k}>{t[e:]}"
     return TARGET_NAME.get(target, "the company"), t

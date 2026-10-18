@@ -76,13 +76,13 @@ class CoMentionNetwork:
         from networkx.algorithms import community as nxc
         n, m = G.number_of_nodes(), G.number_of_edges()
         deg = dict(G.degree()); strength = dict(G.degree(weight="weight"))
-        giant = G.subgraph(max(nx.connected_components(G), key=len)) if m else G
+        giant = G.subgraph(max(nx.connected_components(G), key=len)) if m else nx.Graph()
         comms = list(nxc.greedy_modularity_communities(G, weight="weight")) if m else []
         return {"nodes": n, "edges": m, "density": nx.density(G), "mean_degree": float(np.mean(list(deg.values()))),
                 "mean_strength": float(np.mean(list(strength.values()))), "avg_clustering": nx.average_clustering(G),
                 "avg_clustering_weighted": nx.average_clustering(G, weight="weight"), "transitivity": nx.transitivity(G),
                 "degree_assortativity": nx.degree_assortativity_coefficient(G) if m > 1 else np.nan,
-                "giant_component_nodes": giant.number_of_nodes(), "diameter_giant": nx.diameter(giant) if giant.number_of_nodes() > 1 else 0,
+                "giant_component_nodes": giant.number_of_nodes(), "diameter_giant": nx.diameter(giant) if giant.number_of_nodes() > 1 else 0,  # empty graph → 0
                 "n_communities": len(comms), "modularity": nxc.modularity(G, comms, weight="weight") if comms else np.nan,
                 "isolates": nx.number_of_isolates(G)}
 

@@ -297,3 +297,10 @@ def test_call_scorer_keeps_first_parsed_call():
     assert calls["path"].tolist() == ["call.pdf", "next.pdf"]       # press transcript skipped, revision = same call
     _, calls = sc.score(f, "TCS", after=pd.Timestamp("2024-04-15"))
     assert calls["path"].tolist() == ["next.pdf"]
+
+
+def test_network_metrics_on_edgeless_graph():
+    from finbert_vol.network import CoMentionNetwork
+    net = CoMentionNetwork(); M = net.mentions(pd.Series(["TCS rallies", "Wipro slips"]))
+    gm = net.graph_metrics(net.graph(net.edges(M), list(M.columns)))
+    assert gm["edges"] == 0 and gm["diameter_giant"] == 0 and gm["giant_component_nodes"] == 0

@@ -92,8 +92,11 @@ class CoMentionNetwork:
         from networkx.algorithms import community as nxc
         comms = list(nxc.greedy_modularity_communities(G, weight="weight")) if G.number_of_edges() else []
         cid = {v: i for i, c in enumerate(comms) for v in c}
-        try: eig = nx.eigenvector_centrality_numpy(G, weight="weight")
-        except Exception: eig = {v: np.nan for v in G}
+        eig = {v: 0.0 for v in G}          # defined on the largest connected component; isolated / small parts = 0
+        if G.number_of_edges():
+            giant = G.subgraph(max(nx.connected_components(G), key=len))
+            try: eig.update(nx.eigenvector_centrality_numpy(giant, weight="weight"))
+            except Exception: eig = {v: np.nan for v in G}
         d = pd.DataFrame({"degree": dict(G.degree()), "strength": dict(G.degree(weight="weight")),
                           "degree_centrality": nx.degree_centrality(G), "betweenness": nx.betweenness_centrality(G, weight="distance"),
                           "eigenvector": eig, "pagerank": nx.pagerank(G, weight="weight") if G.number_of_edges() else {v: np.nan for v in G},

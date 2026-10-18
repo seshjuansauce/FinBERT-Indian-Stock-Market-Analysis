@@ -26,6 +26,7 @@ ANALYST_INTRO = re.compile(
     r"(?P<name>[A-Z][A-Za-z\.\'’\-]+(?:\s+[A-Z][A-Za-z\.\'’\-]+){0,3})", re.I)
 CALL_TIME = re.compile(r"([A-Z][a-z]+\s+\d{1,2},?\s+\d{4})\s*,?\s*(\d{1,2}[:.]\d{2})\s*hrs\s*IST", re.I)
 CALL_DATE = re.compile(r"^\s*([A-Z][a-z]+\s+\d{1,2},?\s+\d{4})\s*$", re.M)
+OPENING = re.compile(r"ladies\s+and\s+gentlemen,?[^.]{0,80}?welcome", re.I)
 CALL_HEADING = re.compile(r"^.*earnings\s+(?:conference\s+)?call.*$", re.I | re.M)
 NAME_LINE = re.compile(r"^(?:(?:Mr|Ms|Mrs|Dr)\.?\s+)?[A-Z][A-Za-z\.\'’\-]+(?:\s+[A-Z][A-Za-z\.\'’\-]+){0,3}$")
 ANALYST_LIST = re.compile(r"^\s*(?:ANALYSTS?|PARTICIPANTS? FROM THE ANALYST COMMUNITY)\s*:?\s*$", re.M)
@@ -70,13 +71,16 @@ class TranscriptParser:
         self.min_words = min_words
 
     def _body(self, text: str) -> str:
+        """From the call's opening welcome onwards. Taking the LAST opening skips the cover letter and, in Infosys files,
+        the press conference that precedes the call; closing lines ('…that concludes this call') are not openings."""
         text = PAGE.sub("", text.replace("\r", ""))
-        start = 0
-        for h in CALL_HEADING.finditer(text):                  # Infosys files put the press conference first
-            nxt = START.search(text, h.end())
-            if nxt and nxt.start() - h.end() < 6000: start = h.start()
-        m = START.search(text, start)
-        return text[m.start():] if m else text[start:]
+        opens = list(OPENING.finditer(text))
+        if not opens:
+            m = START.search(text); return text[m.start():] if m else text
+        at = text.rfind("\n", 0, opens[-1].start()) + 1                   # start of that line
+        prev = text.rfind("\n", 0, max(at - 1, 0)) + 1                    # Infosys: 'Moderator' sits on the line above
+        if re.fullmatch(r"\s*(?:Moderator|Operator)\s*", text[prev:at]): at = prev
+        return text[at:]
 
     @staticmethod
     def _listed(text: str, heading: re.Pattern) -> list[str]:

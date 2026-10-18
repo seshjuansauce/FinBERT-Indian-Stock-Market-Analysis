@@ -32,6 +32,7 @@ K Krithivasan: Some clients may delay discretionary spending given the uncertain
 Moderator: Thank you. The next question is from the line of Ankur Rudra from JP Morgan.
 Ankur Rudra: Can you comment on the headwinds in Europe and whether margins could come under pressure?
 Samir Seksaria: It is too early to say, but we remain confident of our long-term margin band of 26 to 28%.
+Moderator: Ladies and gentlemen, on behalf of TCS, that concludes this conference call. Thank you for joining us.
 """
 
 

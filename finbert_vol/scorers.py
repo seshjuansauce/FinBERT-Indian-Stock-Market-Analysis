@@ -48,19 +48,20 @@ class CallScorer:
     MIN_SENTENCES = 50      # fewer = garbled PDF or not a call (press release, press-conference-only transcript)
     SAME_CALL_DAYS = 20     # a second transcript this soon after a kept call is a re-filing / correction of it
 
-    def score(self, filings: pd.DataFrame, target: str, after: pd.Timestamp | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    def score(self, filings: pd.DataFrame, target: str, known: list | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
         """filings: transcript rows (BSEAnnouncements.transcripts), any order. Returns (sentences, calls).
         Filings are taken in date order; one that does not parse as a call (< MIN_SENTENCES) is skipped, and one
         within SAME_CALL_DAYS of the last kept call is treated as the same call (first publication wins).
-        after: date of the last call already scored for this company (incremental runs)."""
-        all_s, calls, last = [], [], after
+        known: publication dates of calls already scored for this company (incremental runs) — a filing within
+        SAME_CALL_DAYS after any of them is that call again."""
+        all_s, calls = [], []; kept = sorted(pd.Timestamp(k) for k in (known or []))
         for r in filings.sort_values("date").itertuples():
             d = pd.Timestamp(r.date)
-            if last is not None and (d - last).days <= self.SAME_CALL_DAYS: continue
+            if any(0 <= (d - k).days <= self.SAME_CALL_DAYS for k in kept): continue
             text = self.transcripts.text(r.path)
             if not text or len(self.parser.parse(text).sentences) < self.MIN_SENTENCES: continue
             sents, feats = self.score_one(text, target)
-            cid = f"{target}_{d:%Y%m%d}"; last = d
+            cid = f"{target}_{d:%Y%m%d}"; kept.append(d)
             all_s.append(sents.assign(call_id=cid, company=target))
             calls.append({"call_id": cid, "company": target, "published": d, "path": r.path, **feats})
         sents = pd.concat(all_s, ignore_index=True) if all_s else pd.DataFrame()

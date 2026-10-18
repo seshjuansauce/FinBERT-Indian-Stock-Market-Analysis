@@ -295,8 +295,10 @@ def test_call_scorer_keeps_first_parsed_call():
                       "path": ["call.pdf", "press.pdf", "rev.pdf", "next.pdf"]})
     _, calls = sc.score(f, "TCS")
     assert calls["path"].tolist() == ["call.pdf", "next.pdf"]       # press transcript skipped, revision = same call
-    _, calls = sc.score(f, "TCS", after=pd.Timestamp("2024-04-15"))
+    _, calls = sc.score(f, "TCS", known=[pd.Timestamp("2024-04-15")])
     assert calls["path"].tolist() == ["next.pdf"]
+    _, calls = sc.score(f, "TCS", known=[pd.Timestamp("2024-07-15")])           # a gap before a known call is filled
+    assert calls["path"].tolist() == ["call.pdf"]
 
 
 def test_network_metrics_on_edgeless_graph():
@@ -304,3 +306,11 @@ def test_network_metrics_on_edgeless_graph():
     net = CoMentionNetwork(); M = net.mentions(pd.Series(["TCS rallies", "Wipro slips"]))
     gm = net.graph_metrics(net.graph(net.edges(M), list(M.columns)))
     assert gm["edges"] == 0 and gm["diameter_giant"] == 0 and gm["giant_component_nodes"] == 0
+
+
+def test_same_day_same_headline_filings_both_kept(tmp_path):
+    ax = pd.DataFrame({"isin": ["INE009A01021"] * 2, "date": pd.to_datetime(["2024-10-22"] * 2), "bse_category": "Company Update",
+                       "bse_subcategory": ["Reg. 39 (3) - Details of Loss of Certificate", "Earnings Call Transcript"],
+                       "bse_headline": ["Enclosed", "Enclosed"], "path": ["cert.pdf", "call.pdf"]})
+    ax.to_parquet(tmp_path / "ax.parquet")
+    assert fv.BSEAnnouncements(tmp_path / "ax.parquet").transcripts("INFY")["path"].tolist() == ["call.pdf"]

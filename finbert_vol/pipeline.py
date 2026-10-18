@@ -62,10 +62,9 @@ class Pipeline:
         S, Cs = ([old_s], [old_c]) if old_c is not None else ([], [])
         for t in self.call_universe(targets):
             f = bse.transcripts(t); f = f[~f["path"].isin(done)]
-            prev = old_c.loc[old_c["company"] == t, "published"] if old_c is not None else pd.Series(dtype="datetime64[ns]")
-            f = f[f["date"] > prev.max()] if len(prev) else f       # incremental: only filings after the last scored call
+            known = old_c.loc[old_c["company"] == t, "published"].tolist() if old_c is not None else []
             if f.empty: continue
-            sents, calls = scorer.score(f, t, prev.max() if len(prev) else None)
+            sents, calls = scorer.score(f, t, known)              # incremental: skips re-filings of known calls, fills gaps
             if len(calls): S.append(sents); Cs.append(calls.assign(model=model.name))
             print(f"[calls] {t}: {len(calls)} new calls, {len(sents)} sentences", flush=True)
             sents_all, calls_all = pd.concat(S, ignore_index=True), pd.concat(Cs, ignore_index=True)

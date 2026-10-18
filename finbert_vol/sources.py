@@ -43,7 +43,12 @@ class BSEAnnouncements:
             raise FileNotFoundError(f"no filings: {filings_path} not found (set axiom_dir / AXIOM_DIR) and no fetched filings")
         df = pd.concat([f[[c for c in self.COLS if c in f.columns]] for f in frames], ignore_index=True)
         df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None).dt.normalize()
-        self.df = df.drop_duplicates(["symbol", "date", "bse_headline"]).reset_index(drop=True)
+        # de-duplicate on the file, never on (date, headline): BSE headlines are often just "Enclosed", and a transcript
+        # can share date + headline with an unrelated filing. The same filing seen in both sources has two paths; for
+        # transcripts CallScorer's same-call rule absorbs that, for daily flags a duplicate is harmless (flags are 0/1).
+        path = df["path"].fillna("").astype(str) if "path" in df else pd.Series("", index=df.index)
+        key = path.where(path != "", df["date"].astype(str) + "|" + df["bse_subcategory"].fillna("") + "|" + df["bse_headline"].fillna(""))
+        self.df = df[~pd.concat([df["symbol"], key], axis=1).duplicated()].reset_index(drop=True)
 
     @property
     def symbols(self) -> list[str]: return sorted(self.df["symbol"].dropna().unique())

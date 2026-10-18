@@ -52,7 +52,7 @@ def main():
     (out / "graph_metrics.json").write_text(json.dumps(gm, indent=1, default=float))
     nm = net.node_metrics(G); nm.insert(0, "headlines", M.sum()); nm.to_csv(out / "node_metrics.csv")
 
-    mon = net.monthly(d.loc[multi, "date"], M[multi], focus=a.focus, min_weight=a.min_weight)
+    mon = net.monthly(d.loc[multi, "date"], M[multi], focus=a.focus, min_weight=1)   # a month is too short for a weight cut
     mon.to_csv(ROOT / "data" / "features" / f"network_{a.focus.lower()}_monthly{('_' + a.tag) if a.tag else ''}.csv", index=False)
 
     f = a.focus; rank = lambda c: int(nm[c].rank(ascending=False, method="min")[f])

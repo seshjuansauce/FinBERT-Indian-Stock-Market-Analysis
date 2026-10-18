@@ -204,3 +204,25 @@ def test_parser_infosys_layout_skips_press_conference():
     assert set(t[t.role == "management"].speaker) == {"Salil Parekh"}
     assert t[t.speaker == "Salil Parekh"].section.tolist() == ["prepared", "qa", "qa"]
     assert pc.call_time == pd.Timestamp("2026-04-23")
+
+
+# ---------------- network ----------------
+def test_comention_network_aliases_and_metrics():
+    from finbert_vol.network import CoMentionNetwork
+    titles = pd.Series(["TCS, Infosys drag Sensex; HDFC Bank gains", "HDFC Life and SBI Life rally", "Tata Steel, Tata Motors slip",
+                        "TCS to be collected on foreign remittance", "Infosys and Wipro win deals", "Reliance Power falls; RIL steady",
+                        "Tech Mahindra and M&M in focus", "TCS, Wipro, HCLTech: IT stocks to watch"])
+    net = CoMentionNetwork(); M = net.mentions(titles)
+    assert M.loc[0, ["TCS", "INFY", "HDFCBANK"]].all() and not M.loc[0, "HDFCLIFE"]
+    assert M.loc[1, ["HDFCLIFE", "SBILIFE"]].all() and not M.loc[1, ["HDFCBANK", "SBIN"]].any()
+    assert not M.loc[2, "TCS"] and M.loc[2, ["TATASTEEL", "TMPV"]].all()
+    assert not M.loc[3, "TCS"]                                                  # tax collected at source
+    assert M.loc[5, "RELIANCE"] and M.loc[6, ["TECHM", "M&M"]].all()
+    E = net.edges(M); G = net.graph(E, list(M.columns))
+    w = {tuple(sorted((r.source, r.target))): r.weight for r in E.itertuples()}
+    assert w[("TCS", "WIPRO")] == 1 and w[("INFY", "WIPRO")] == 1 and w[("INFY", "TCS")] == 1
+    gm = net.graph_metrics(G); nm = net.node_metrics(G)
+    assert gm["nodes"] == len(M.columns) and 0 < gm["density"] < 1
+    assert nm.loc["TCS", "degree"] == 4 and nm.loc["TCS", "sector"] == "IT"
+    mon = net.monthly(pd.Series(pd.to_datetime(["2024-01-05"] * 4 + ["2024-02-01"] * 4)), M)
+    assert list(mon.month) == ["2024-01", "2024-02"] and mon.tcs_degree.tolist() == [2, 2]

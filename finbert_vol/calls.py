@@ -25,6 +25,11 @@ ANALYST_INTRO = re.compile(
     r"question\s+(?:is|comes|will be)?\s*(?:from|is from)\s+(?:the line of\s+)?(?:Mr\.?\s+|Ms\.?\s+|Mrs\.?\s+)?"
     r"(?P<name>[A-Z][A-Za-z\.\'’\-]+(?:\s+[A-Z][A-Za-z\.\'’\-]+){0,3})", re.I)
 CALL_TIME = re.compile(r"([A-Z][a-z]+\s+\d{1,2},?\s+\d{4})\s*,?\s*(\d{1,2}[:.]\d{2})\s*hrs\s*IST", re.I)
+CALL_DATE = re.compile(r"^\s*([A-Z][a-z]+\s+\d{1,2},?\s+\d{4})\s*$", re.M)
+CALL_HEADING = re.compile(r"^.*earnings\s+(?:conference\s+)?call.*$", re.I | re.M)
+NAME_LINE = re.compile(r"^(?:(?:Mr|Ms|Mrs|Dr)\.?\s+)?[A-Z][A-Za-z\.\'’\-]+(?:\s+[A-Z][A-Za-z\.\'’\-]+){0,3}$")
+ANALYST_LIST = re.compile(r"^\s*(?:ANALYSTS?|PARTICIPANTS? FROM THE ANALYST COMMUNITY)\s*:?\s*$", re.M)
+MGMT_LIST = re.compile(r"^\s*(?:CORPORATE PARTICIPANTS|MANAGEMENT)\s*:?\s*$", re.M)
 SENT_SPLIT = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9“\"'])")
 
 HEDGE = re.compile(r"\b(?:may|might|could|possibl[ey]|perhaps|uncertain(?:ty|ties)?|unclear|unpredictab\w*|cautious(?:ly)?|"
@@ -66,25 +71,57 @@ class TranscriptParser:
 
     def _body(self, text: str) -> str:
         text = PAGE.sub("", text.replace("\r", ""))
-        m = START.search(text)
-        return text[m.start():] if m else text
+        start = 0
+        for h in CALL_HEADING.finditer(text):                  # Infosys files put the press conference first
+            nxt = START.search(text, h.end())
+            if nxt and nxt.start() - h.end() < 6000: start = h.start()
+        m = START.search(text, start)
+        return text[m.start():] if m else text[start:]
+
+    @staticmethod
+    def _listed(text: str, heading: re.Pattern) -> list[str]:
+        """Names under a participants heading (Infosys layout: name line, title/firm line, name line, …)."""
+        m = heading.search(text)
+        if not m: return []
+        lines = [l.strip() for l in text[m.end():m.end() + 3000].split("\n") if l.strip()]
+        out = []
+        for i, l in enumerate(lines):
+            if START.match(l) or "©" in l or l.isdigit() or ANALYST_LIST.match(l) or MGMT_LIST.match(l): break
+            if i % 2 == 0 and NAME_LINE.match(l): out.append(l)
+        return out
+
+    def _listed_analysts(self, text: str) -> set[str]:
+        return {self._norm(n) for n in self._listed(text, ANALYST_LIST)}
+
+    @staticmethod
+    def _name_lines(body: str) -> set[str]:
+        """Speaker names written alone on a line (Infosys layout): a name-shaped line seen at least twice, or 'Moderator'."""
+        cand = [l.strip() for l in body.split("\n") if NAME_LINE.match(l.strip()) and len(l.split()) <= 4]
+        counts = pd.Series(cand).value_counts() if cand else pd.Series(dtype=int)
+        return {n for n, c in counts.items() if c >= 2 or re.fullmatch(r"(?i)moderator|operator", n)}
 
     def turns(self, text: str) -> pd.DataFrame:
         rows, cur = [], None
-        for line in self._body(text).split("\n"):
+        body = self._body(text)
+        colon_style = sum(bool(SPEAKER.match(l.strip())) for l in body.split("\n")) >= 10
+        alone = set() if colon_style else (self._name_lines(body) | set(self._listed(text, ANALYST_LIST)) | set(self._listed(text, MGMT_LIST)))
+        for line in body.split("\n"):
             line = line.strip()
-            if not line: continue
-            m = SPEAKER.match(line)
+            if not line or "©" in line or line.isdigit(): continue
+            m = SPEAKER.match(line) if colon_style else None
             if m and not NOT_SPEAKER.match(m.group("name").strip()) and len(m.group("name").split()) <= 5:
                 if cur: rows.append(cur)
                 cur = {"speaker": m.group("name").strip(), "text": m.group("rest").strip()}
+            elif line in alone:
+                if cur: rows.append(cur)
+                cur = {"speaker": line, "text": ""}
             elif cur:
-                cur["text"] += " " + line
+                cur["text"] = (cur["text"] + " " + line).strip()
         if cur: rows.append(cur)
         df = pd.DataFrame(rows, columns=["speaker", "text"])
         if df.empty: return df.assign(role=[], section=[])
         mod = df["speaker"].str.fullmatch(r"(?i)moderator|operator|coordinator|host")
-        analysts = {self._norm(n) for t in df.loc[mod, "text"] for n in ANALYST_INTRO.findall(t)}
+        analysts = {self._norm(n) for t in df.loc[mod, "text"] for n in ANALYST_INTRO.findall(t)} | self._listed_analysts(text)
         df["role"] = np.where(mod, "moderator",
                               np.where(df["speaker"].map(self._norm).isin(analysts) | self._analyst_by_order(df, mod), "analyst", "management"))
         qa_idx = next((i for i, (is_mod, t) in enumerate(zip(mod, df["text"])) if is_mod and QA_START.search(t)), len(df))
@@ -119,8 +156,13 @@ class TranscriptParser:
                 rows.append({"speaker": r.speaker, "role": r.role, "section": r.section, "context": ctx, "sentence": s,
                              "hedge": bool(HEDGE.search(s)), "forward": bool(FORWARD.search(s)), "number": bool(NUMBER.search(s))})
         sents = pd.DataFrame(rows, columns=["speaker", "role", "section", "context", "sentence", "hedge", "forward", "number"])
-        m = CALL_TIME.search(text[:4000])
-        when = pd.to_datetime(f"{m.group(1)} {m.group(2).replace('.', ':')}", errors="coerce") if m else None
+        head = text[:6000]
+        m = CALL_TIME.search(head)
+        if m:
+            when = pd.to_datetime(f"{m.group(1)} {m.group(2).replace('.', ':')}", errors="coerce")
+        else:                                                    # date only (Wipro, Infosys): the last date line before the call opens
+            body_at = text.find(self._body(text)[:200]); dates = CALL_DATE.findall(text[:max(body_at, 0)] or head)
+            when = pd.to_datetime(dates[-1].replace(",", ""), errors="coerce") if dates else None
         return ParsedCall(t, sents, when, t.attrs.get("analysts", []))
 
 

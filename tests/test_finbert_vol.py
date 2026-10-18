@@ -160,3 +160,46 @@ def test_call_window_test():
     panel["u_5d"] = 0.8 * panel["hedge_rate_answers"] + rng.normal(0, 0.3, n)
     res = Evaluator.call_window_test(panel, ["hedge_rate_answers", "tone_answers"], "u_5d").set_index("feature")
     assert res.loc["hedge_rate_answers", "p"] < 0.001 and res.loc["tone_answers", "p"] > 0.01
+
+
+INFOSYS_STYLE = """Rishi Basu
+Thank you. With that we come to the end of this press conference. Please join us for high tea outside.
+Infosys Limited
+Q4 FY26 Earnings Conference Call
+April 23, 2026
+CORPORATE PARTICIPANTS:
+Salil Parekh
+Chief Executive Officer and Managing Director
+ANALYSTS
+Yogesh Aggarwal
+HSBC Securities
+Ankur Rudra
+JP Morgan
+1
+Moderator
+Ladies and gentlemen, greetings, and welcome to Infosys Limited Q4 FY26 Earnings Conference Call.
+Salil Parekh
+We delivered a strong performance in the financial year with healthy deal wins across all segments.
+Moderator
+Thank you. The first question comes from the line of Yogesh Aggarwal from HSBC. Please go ahead.
+Yogesh Aggarwal
+Why has the growth guidance for next year been set so cautiously given the strong deal wins?
+Salil Parekh
+The macro environment remains uncertain and some clients may delay decisions in the near term.
+Moderator
+The next question comes from the line of Ankur Rudra from JP Morgan.
+Ankur Rudra
+Could you talk about pricing pressure in the financial services vertical this quarter?
+Salil Parekh
+We see some pricing pressure but our margins remain within the guided band for the year.
+"""
+
+
+def test_parser_infosys_layout_skips_press_conference():
+    pc = TranscriptParser().parse(INFOSYS_STYLE)
+    t = pc.turns
+    assert "Rishi Basu" not in set(t.speaker)                                  # press conference dropped
+    assert set(t[t.role == "analyst"].speaker) == {"Yogesh Aggarwal", "Ankur Rudra"}
+    assert set(t[t.role == "management"].speaker) == {"Salil Parekh"}
+    assert t[t.speaker == "Salil Parekh"].section.tolist() == ["prepared", "qa", "qa"]
+    assert pc.call_time == pd.Timestamp("2026-04-23")

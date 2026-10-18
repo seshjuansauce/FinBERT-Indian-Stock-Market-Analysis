@@ -8,6 +8,9 @@ steps
   call-test     pooled call-window test (u over 1/5/10 days after publication) → results/pipeline/call_test.csv
   predict       next-day forecast from the latest row → results/pipeline/prediction_latest.json
   all           score-news, score-calls, features, evaluate, call-test, predict
+  fetch-transcripts  NIFTY 50 transcripts from BSE → data/calls/{bse_filings.parquet,pdfs/,transcripts.jsonl}  (run on your Mac)
+
+  --targets ALL       score-calls / call-test over every company with transcripts and price features
 """
 import argparse
 
@@ -18,11 +21,23 @@ from .volatility import Evaluator
 
 def main():
     ap = argparse.ArgumentParser(prog="finbert_vol")
-    ap.add_argument("step", choices=["score-news", "score-calls", "features", "evaluate", "call-test", "predict", "all"])
+    ap.add_argument("step", choices=["score-news", "score-calls", "features", "evaluate", "call-test", "predict", "all", "fetch-transcripts"])
     ap.add_argument("--config", default=None); ap.add_argument("--target", default=None)
+    ap.add_argument("--targets", default=None, help="comma list or ALL (call steps)")
+    ap.add_argument("--symbols", default=None, help="fetch-transcripts: comma list (default: NIFTY 50)")
+    ap.add_argument("--start", default="2021-01-01"); ap.add_argument("--delay", type=float, default=1.0)
     a = ap.parse_args()
     s = Settings.load(a.config)
     if a.target: s.target = a.target
+    if a.targets: s.call_targets = a.targets.split(",")
+    if a.step == "fetch-transcripts":
+        from datetime import date
+        from .bse_fetch import BSETranscriptFetcher
+        from .universe import NIFTY50
+        f = BSETranscriptFetcher(s.path("."), delay=a.delay)
+        syms = a.symbols.split(",") if a.symbols else list(NIFTY50)
+        df = f.run(syms, date.fromisoformat(a.start), date.today()); f.extract()
+        print(df.groupby("symbol").size().sort_values().to_string() if len(df) else "nothing fetched"); return
     p = Pipeline(s)
     steps = ["score-news", "score-calls", "features", "evaluate", "call-test", "predict"] if a.step == "all" else [a.step]
     for st in steps:
@@ -30,7 +45,7 @@ def main():
         if st == "score-news": p.score_news()
         elif st == "score-calls": p.score_calls()
         elif st == "features":
-            for t in s.call_targets if st == "features" else [s.target]:
+            for t in p.call_universe():
                 try: p.build_features(t); print(f"   model table for {t}")
                 except FileNotFoundError as e: print(f"   {t}: {e}")
         elif st == "evaluate": print(p.evaluate().round(4).to_string(index=False))

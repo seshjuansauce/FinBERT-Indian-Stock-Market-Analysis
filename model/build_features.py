@@ -25,9 +25,15 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "features"
 warnings.filterwarnings("ignore")
 
+HF_PRICES = ROOT / "data" / "hf" / "stock_dataset" / "nifty50_ticker.csv"   # all NIFTY 50 names, 2020 → Mar 2026
+
 def load(symbol: str) -> pd.DataFrame:
+    """data/prices.csv (yfinance, kept current) first; the HF NIFTY 50 file for any symbol not in it."""
     p = pd.read_csv(ROOT / "data" / "prices.csv")
     p = p[p["Symbol"] == symbol].copy()
+    if p.empty and HF_PRICES.exists():
+        p = pd.read_csv(HF_PRICES); p = p[p["Symbol"] == symbol].copy()
+    if p.empty: raise SystemExit(f"{symbol}: no prices in data/prices.csv or {HF_PRICES.name}")
     p["date"] = pd.to_datetime(p["Date"].str[:10])
     p = p.sort_values("date").set_index("date")
     p = p[(p["Volume"] > 0) & (p["High"] > p["Low"])]   # yfinance emits flat zero-volume rows on some holidays

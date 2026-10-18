@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-COMPANY = {"TCS": "tcs", "INFY": "infosys", "WIPRO": "wipro", "HCLTECH": "hcltech", "TECHM": "tech mahindra"}
+from .universe import NAME as COMPANY   # symbol → short name used as the call model's context (text_a)
 
 START = re.compile(r"^\s*(?:Moderator|Operator)\s*:|ladies and gentlemen", re.I | re.M)
 SPEAKER = re.compile(r"^(?P<name>[A-Z][A-Za-z\.\'’\- ]{1,48}?)\s*:\s+(?P<rest>.*)$")

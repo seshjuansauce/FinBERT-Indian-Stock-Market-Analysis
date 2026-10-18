@@ -13,3 +13,7 @@ statsmodels
 scikit-learn
 matplotlib
 jupyterlab
+requests
+pyarrow
+pdfplumber
+networkx

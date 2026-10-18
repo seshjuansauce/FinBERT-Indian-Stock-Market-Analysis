@@ -5,14 +5,16 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ISIN = {"TCS": "INE467B01029", "INFY": "INE009A01021", "WIPRO": "INE075A01022", "HCLTECH": "INE860A01027", "TECHM": "INE669C01036"}
+ISIN = {"TCS": "INE467B01029", "INFY": "INE009A01021", "WIPRO": "INE075A01022", "HCLTECH": "INE860A01027", "TECHM": "INE669C01036",
+        "CIPLA": "INE059A01026", "DRREDDY": "INE089A01031", "SUNPHARMA": "INE044A01036"}
 SYMBOL = {"TCS": "TCS.NS", "INFY": "INFY.NS", "WIPRO": "WIPRO.NS", "HCLTECH": "HCLTECH.NS", "TECHM": "TECHM.NS"}
+SYMBOL.update({s: f"{s}.NS" for s in ("CIPLA", "DRREDDY", "SUNPHARMA")})
 
 
 @dataclass
 class Settings:
     target: str = "TCS"                                         # company the forecast is for
-    call_targets: list[str] = field(default_factory=lambda: ["TCS", "INFY", "WIPRO"])  # pooled for the call test
+    call_targets: list[str] = field(default_factory=lambda: ["TCS", "INFY", "WIPRO"])  # pooled for the call test; ["ALL"] = every company with transcripts + prices
     news_model: str = "models/finbert-in-sentiment"             # FinBERT-IN (news, target-aware)
     call_model: str = "models/finbert-in-call"                  # FinBERT-IN-call (falls back to news_model if absent)
     calibration: str = "results/sentiment/calibration.json"     # temperatures (key = model tag)
@@ -31,10 +33,10 @@ class Settings:
         return p if p.is_absolute() else ROOT / p
 
     @property
-    def isin(self) -> str: return ISIN[self.target]
+    def isin(self) -> str: return ISIN.get(self.target, self.target)
 
     @property
-    def symbol(self) -> str: return SYMBOL[self.target]
+    def symbol(self) -> str: return SYMBOL.get(self.target, f"{self.target}.NS")
 
     @property
     def filings(self) -> Path: return Path(self.axiom_dir).expanduser() / "research" / "data" / "filings.parquet"

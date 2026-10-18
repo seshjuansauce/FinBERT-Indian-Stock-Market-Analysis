@@ -226,3 +226,74 @@ def test_comention_network_aliases_and_metrics():
     assert nm.loc["TCS", "degree"] == 4 and nm.loc["TCS", "sector"] == "IT"
     mon = net.monthly(pd.Series(pd.to_datetime(["2024-01-05"] * 4 + ["2024-02-01"] * 4)), M)
     assert list(mon.month) == ["2024-01", "2024-02"] and mon.tcs_degree.tolist() == [2, 2]
+
+
+# ---------------- BSE transcripts: filter, two sources, fetcher ----------------
+def test_is_transcript_filter():
+    from finbert_vol.bse_fetch import is_transcript
+    assert is_transcript("Earnings Call Transcript", "anything")
+    assert is_transcript("Analyst / Investor Meet", "Transcript of the Earnings call conducted on May 14, 2021")
+    assert is_transcript("General", "Transcripts of the press conference and earnings call conducted after the meeting of board")
+    assert not is_transcript("AGM", "Transcript of the 40th Annual General Meeting")
+    assert not is_transcript("General", "copy of the transcript of the Company's 39th Annual J.P. Morgan Healthcare Conference")
+    assert not is_transcript("Analyst / Investor Meet", "Schedule of earnings call on Jan 12")
+
+
+def test_bse_announcements_two_sources_and_refiled(tmp_path):
+    ax = pd.DataFrame({"isin": ["INE467B01029"] * 2, "date": pd.to_datetime(["2021-04-16", "2023-07-14"]),
+                       "bse_category": "Company Update", "bse_subcategory": ["General", "Earnings Call Transcript"],
+                       "bse_headline": ["Transcript of the earnings call held on April 12, 2021", "Transcript"],
+                       "path": ["a.pdf", "b.pdf"]})
+    fe = pd.DataFrame({"symbol": ["CIPLA"] * 3 + ["TCS"], "isin": ["INE059A01026"] * 3 + ["INE467B01029"],
+                       "date": pd.to_datetime(["2024-05-17", "2024-05-24", "2024-08-01", "2023-07-14"]),
+                       "bse_category": "Company Update", "bse_subcategory": "Earnings Call Transcript",
+                       "bse_headline": ["Transcript", "Revised transcript", "Transcript", "Transcript"],
+                       "path": ["c1.pdf", "c1r.pdf", "c2.pdf", "b.pdf"]})
+    ax.to_parquet(tmp_path / "ax.parquet"); fe.to_parquet(tmp_path / "fe.parquet")
+    b = fv.BSEAnnouncements(tmp_path / "ax.parquet", [tmp_path / "fe.parquet"])
+    assert b.symbols == ["CIPLA", "TCS"]
+    assert b.transcripts("TCS")["path"].tolist() == ["a.pdf", "b.pdf"]           # 2021 General-subcategory call counted; dup dropped
+    assert b.transcripts("CIPLA")["path"].tolist() == ["c1.pdf", "c1r.pdf", "c2.pdf"]
+    assert b.transcripts("INE467B01029")["path"].tolist() == ["a.pdf", "b.pdf"]  # ISIN still works
+
+
+def test_fetcher_with_mocked_bse(tmp_path, monkeypatch):
+    from finbert_vol import bse_fetch
+    import requests
+
+    class FakeResp:
+        def __init__(self, content): self.ok, self.content = True, content
+
+    def fake_get(self, params):
+        if params["strScrip"] == "500087" and params["strPrevDate"].startswith("2024"):
+            return [{"SLONGNAME": "Cipla Ltd", "SUBCATNAME": "Earnings Call Transcript", "HEADLINE": "Transcript of Q4 call",
+                     "ATTACHMENTNAME": "x.pdf", "DT_TM": "2024-05-17T18:02:00", "NEWSID": "abcdef1234", "ISIN_CODE": "INE059A01026",
+                     "CATEGORYNAME": "Company Update"},
+                    {"SLONGNAME": "Cipla Ltd", "SUBCATNAME": "Board Meeting", "HEADLINE": "Board meeting intimation",
+                     "ATTACHMENTNAME": "y.pdf", "DT_TM": "2024-04-30T10:00:00", "NEWSID": "zz"}]
+        if params["strScrip"] == "532540": return [{"SUBCATNAME": "Earnings Call Transcript", "HEADLINE": "t"}]   # probe
+        return [{"SLONGNAME": "Cipla Ltd"}] if params["strCat"] == "-1" else []
+    monkeypatch.setattr(bse_fetch.BSETranscriptFetcher, "_get", fake_get)
+    monkeypatch.setattr(bse_fetch.BSETranscriptFetcher, "_seed", lambda self: None)
+    monkeypatch.setattr(bse_fetch.BSETranscriptFetcher, "_sleep", lambda self, k=1.0: None)
+    monkeypatch.setattr(bse_fetch.time, "sleep", lambda s: None)
+    monkeypatch.setattr(requests.Session, "get", lambda self, url, **kw: FakeResp(b"%PDF-1.4 fake" + b"0" * 2000))
+    f = bse_fetch.BSETranscriptFetcher(tmp_path)
+    df = f.run(["CIPLA"], pd.Timestamp("2023-01-01").date(), pd.Timestamp("2024-12-31").date())
+    assert len(df) == 1 and df.loc[0, "symbol"] == "CIPLA" and df.loc[0, "isin"] == "INE059A01026"
+    assert (tmp_path / df.loc[0, "path"]).exists() and df.loc[0, "path"].startswith("data/calls/pdfs/CIPLA/20240517_")
+    assert "CIPLA|2023" in f.state["done"] and "CIPLA|2024" in f.state["done"]
+
+
+def test_call_scorer_keeps_first_parsed_call():
+    class T:   # transcripts cache stand-in
+        texts = {"press.pdf": "Press conference. Q: numbers? A: good.", "call.pdf": TRANSCRIPT, "rev.pdf": TRANSCRIPT, "next.pdf": TRANSCRIPT}
+        def text(self, p): return self.texts[p]
+    m = DummyModel(fmt={"format": "call", "pair": True, "t": True, "o": True, "c": True, "m": True, "h": True})
+    sc = CallScorer(m, T()); sc.MIN_SENTENCES = 5
+    f = pd.DataFrame({"date": pd.to_datetime(["2024-04-15", "2024-04-12", "2024-04-25", "2024-07-15"]),
+                      "path": ["call.pdf", "press.pdf", "rev.pdf", "next.pdf"]})
+    _, calls = sc.score(f, "TCS")
+    assert calls["path"].tolist() == ["call.pdf", "next.pdf"]       # press transcript skipped, revision = same call
+    _, calls = sc.score(f, "TCS", after=pd.Timestamp("2024-04-15"))
+    assert calls["path"].tolist() == ["next.pdf"]

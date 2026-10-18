@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .config import ISIN, Settings
+from .config import Settings
 from .features import CALL_FEATURES, FeatureBuilder
 from .models import SentimentModel
 from .scorers import AnnouncementScorer, CallScorer, NewsScorer
@@ -38,18 +38,39 @@ class Pipeline:
         corpus.save(art); return art
 
     def transcripts(self) -> Transcripts:
-        return Transcripts(Path(self.s.transcripts_jsonl), Path(self.s.axiom_dir).expanduser())
+        return Transcripts(Path(self.s.transcripts_jsonl), [Path(self.s.axiom_dir).expanduser(), self.s.path('.')])
 
-    def score_calls(self, targets: list[str] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
-        bse = BSEAnnouncements(self.s.filings); scorer = CallScorer(self.call_model(), self.transcripts())
-        S, Cs = [], []
-        for t in targets or self.s.call_targets:
-            sents, calls = scorer.score(bse.transcripts(ISIN[t]), t); S.append(sents); Cs.append(calls)
-            print(f"[calls] {t}: {len(calls)} calls, {len(sents)} sentences")
-        sents, calls = pd.concat(S, ignore_index=True), pd.concat(Cs, ignore_index=True)
+    def bse(self) -> BSEAnnouncements:
+        """axiom filings + transcripts fetched from BSE (data/calls/bse_filings.parquet), if either exists."""
+        fp = self.s.filings if self.s.filings.exists() else None
+        return BSEAnnouncements(fp, [self.s.path('data/calls/bse_filings.parquet')])
+
+    def call_universe(self, targets: list[str] | None = None) -> list[str]:
+        t = targets or self.s.call_targets
+        if [x.upper() for x in t] != ['ALL']: return list(t)
+        bse = self.bse()
+        return [s for s in bse.symbols if len(bse.transcripts(s)) and (self.feat_dir / f'price_features_{s.lower()}.csv').exists()]
+
+    def score_calls(self, targets: list[str] | None = None, incremental: bool = True) -> tuple[pd.DataFrame, pd.DataFrame]:
+        """Score every transcript of the targets. incremental: keep calls already scored by the same model, score the rest."""
+        bse = self.bse(); model = self.call_model(); scorer = CallScorer(model, self.transcripts())
         cdir = self.s.path("data/calls"); cdir.mkdir(parents=True, exist_ok=True)
-        sents.to_csv(cdir / "call_sentences_scored.csv", index=False); calls.to_csv(cdir / "calls.csv", index=False)
-        return sents, calls
+        ps, pc = cdir / "call_sentences_scored.csv", cdir / "calls.csv"
+        old_s, old_c = (pd.read_csv(ps), pd.read_csv(pc, parse_dates=["published"])) if incremental and ps.exists() and pc.exists() else (None, None)
+        if old_c is not None and ("model" not in old_c or (old_c["model"] != model.name).any()): old_s = old_c = None
+        done = set(old_c["path"]) if old_c is not None else set()
+        S, Cs = ([old_s], [old_c]) if old_c is not None else ([], [])
+        for t in self.call_universe(targets):
+            f = bse.transcripts(t); f = f[~f["path"].isin(done)]
+            prev = old_c.loc[old_c["company"] == t, "published"] if old_c is not None else pd.Series(dtype="datetime64[ns]")
+            f = f[f["date"] > prev.max()] if len(prev) else f       # incremental: only filings after the last scored call
+            if f.empty: continue
+            sents, calls = scorer.score(f, t, prev.max() if len(prev) else None)
+            if len(calls): S.append(sents); Cs.append(calls.assign(model=model.name))
+            print(f"[calls] {t}: {len(calls)} new calls, {len(sents)} sentences", flush=True)
+            sents_all, calls_all = pd.concat(S, ignore_index=True), pd.concat(Cs, ignore_index=True)
+            sents_all.to_csv(ps, index=False); calls_all.to_csv(pc, index=False)        # checkpoint per company
+        return (pd.concat(S, ignore_index=True), pd.concat(Cs, ignore_index=True)) if Cs else (pd.DataFrame(), pd.DataFrame())
 
     def load_calls(self) -> pd.DataFrame | None:
         p = self.s.path("data/calls/calls.csv")
@@ -58,11 +79,11 @@ class Pipeline:
     def flags(self, target: str | None = None) -> pd.DataFrame | None:
         t = target or self.s.target
         try:
-            bse = BSEAnnouncements(self.s.filings)
+            bse = self.bse()
         except FileNotFoundError as e:
             print(f"[flags] skipped: {e}"); return None
         td = FeatureBuilder(self.feat_dir, t).prices().index
-        return AnnouncementScorer(bse).daily_flags(ISIN[t], td)
+        return AnnouncementScorer(bse).daily_flags(t, td)
 
     def build_features(self, target: str | None = None, sent_col: str = "sent_Ct") -> pd.DataFrame:
         t = target or self.s.target; fb = FeatureBuilder(self.feat_dir, t)

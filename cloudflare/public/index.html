@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCS Volatility Tracker</title>
+<meta name="description" content="Daily next-day volatility forecast for TCS: GJR-GARCH corrected with FinBERT news sentiment, against what actually happened.">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f5f2; --surface-1: #fcfcfb; --border: #e3e1dc;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #77756f;
+  --grid: #ebe9e4; --axis: #c9c7c0;
+  --series-1: #2a78d6; --series-1-band: rgba(42,120,214,.16); --series-2: #eb6834;
+  --actual: #52514e; --serious: #d03b3b; --good: #0ca30c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface-1: #1a1a19; --border: #2e2e2b;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #94938b;
+    --grid: #292927; --axis: #4a4a46;
+    --series-1: #3987e5; --series-1-band: rgba(57,135,229,.22); --series-2: #d95926;
+    --actual: #c3c2b7; --serious: #e66767; --good: #3fbf3f;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface-1: #1a1a19; --border: #2e2e2b;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #94938b;
+  --grid: #292927; --axis: #4a4a46;
+  --series-1: #3987e5; --series-1-band: rgba(57,135,229,.22); --series-2: #d95926;
+  --actual: #c3c2b7; --serious: #e66767; --good: #3fbf3f;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text-primary);
+  font: 15px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+h2 { font-size: 15px; margin: 0 0 2px; }
+.sub { color: var(--text-secondary); margin: 0 0 20px; max-width: 70ch; }
+.muted { color: var(--text-muted); font-size: 13px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.tile, .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; }
+.tile { padding: 14px 16px; }
+.tile .k { color: var(--text-secondary); font-size: 13px; }
+.tile .v { font-size: 26px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+.tile .n { color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
+.card { padding: 16px; margin-bottom: 16px; }
+.head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 13px; padding: 5px 12px; border: 0; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); margin: 4px 0 6px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.band { height: 10px; background: var(--series-1-band); border: 1px solid var(--series-1); }
+.legend i.dot { width: 8px; height: 8px; border-radius: 50%; }
+.chart { position: relative; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 16px rgba(0,0,0,.12); min-width: 170px; display: none; z-index: 2; }
+.tip b { font-variant-numeric: tabular-nums; }
+.tip .row { display: flex; justify-content: space-between; gap: 12px; color: var(--text-secondary); }
+.tip .row b { color: var(--text-primary); }
+.news { list-style: none; margin: 0; padding: 0; }
+.news li { display: grid; grid-template-columns: 86px 56px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.news li:first-child { border-top: 0; }
+.news .s { font-variant-numeric: tabular-nums; font-weight: 600; }
+.news a { color: var(--text-primary); text-decoration: none; }
+.news a:hover { text-decoration: underline; }
+.err { color: var(--serious); }
+details summary { cursor: pointer; color: var(--text-secondary); font-size: 13px; }
+table { border-collapse: collapse; font-size: 13px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+td, th { padding: 4px 10px; border-bottom: 1px solid var(--border); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+@media (max-width: 560px) { .news li { grid-template-columns: 48px 1fr; row-gap: 2px; } .news li > .muted:first-child { grid-column: 1 / -1; font-size: 12px; } .news li .src { display: none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>TCS next-day volatility</h1>
+  <p class="sub">Each evening a GJR-GARCH model forecasts tomorrow's volatility; a FinBERT model reads the day's TCS headlines
+    and corrects it. Below: what was predicted, and how much TCS actually moved.</p>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section class="card">
+    <div class="head">
+      <div><h2>Predicted range vs actual move</h2>
+        <div class="muted">Shaded band: ±σ, the forecast size of a one-day move. Dots: the actual close-to-close return.</div></div>
+      <div class="seg" role="group" aria-label="Time range" id="range">
+        <button data-r="63">3M</button><button data-r="252" aria-pressed="true">1Y</button><button data-r="0">All</button>
+      </div>
+    </div>
+    <div class="legend"><span><i class="band"></i>Forecast range ±σ</span><span><i class="dot" style="background:var(--actual)"></i>Actual return</span>
+      <span><i class="dot" style="background:var(--serious)"></i>Outside the range</span></div>
+    <div class="chart" id="c-band"></div>
+  </section>
+
+  <section class="card">
+    <div class="head"><div><h2>Forecast σ vs realised volatility</h2>
+      <div class="muted">Daily %, 5-day averages. Realised = overnight gap + intraday range.</div></div></div>
+    <div class="legend"><span><i style="background:var(--series-1)"></i>GARCH + FinBERT</span><span><i style="background:var(--series-2)"></i>GARCH only</span>
+      <span><i style="background:var(--actual)"></i>Realised</span></div>
+    <div class="chart" id="c-sigma"></div>
+  </section>
+
+  <section class="card">
+    <div class="head"><div><h2>TCS close (₹)</h2></div></div>
+    <div class="chart" id="c-price"></div>
+  </section>
+
+  <section class="card">
+    <div class="head"><div><h2>Recent TCS headlines</h2>
+      <div class="muted">FinBERT score s = P(positive) − P(negative), from −1 to +1. Source: Google News search of Indian business sites.</div></div></div>
+    <ul class="news" id="news"></ul>
+  </section>
+
+  <section class="card">
+    <details><summary>How good is it? (forecast loss, lower is better)</summary><div id="metrics"></div></details>
+    <p class="muted" id="foot" style="margin:10px 0 0"></p>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const fmt = (x, d = 2) => (x == null || !isFinite(x)) ? "–" : Number(x).toFixed(d);
+const fmtDate = (d) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+function parseCSV(text) {
+  const [head, ...rows] = text.trim().split(/\r?\n/); const cols = head.split(",");
+  return rows.map(r => { const v = r.split(","); const o = {}; cols.forEach((c, i) => o[c] = v[i]); return o; });
+}
+const num = (v) => (v === "" || v == null) ? NaN : +v;
+
+async function get(name, as = "json") {
+  const r = await fetch(`/api/${name}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`${name}: HTTP ${r.status}`);
+  return as === "json" ? r.json() : r.text();
+}
+
+// ---------- tiny chart kit: one y-axis, recessive grid, crosshair + tooltip ----------
+function frame(host, data, yDomain, opts = {}) {
+  host.textContent = "";
+  const W = host.clientWidth || 900, H = opts.h || 260, m = { t: 8, r: 12, b: 26, l: 44 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": opts.label || "" }, host);
+  const x0 = data[0].day.getTime(), x1 = data[data.length - 1].day.getTime();
+  const X = (d) => m.l + (W - m.l - m.r) * ((d.getTime() - x0) / Math.max(1, x1 - x0));
+  const [y0, y1] = yDomain; const Y = (v) => m.t + (H - m.t - m.b) * (1 - (v - y0) / (y1 - y0));
+  const g = el("g", {}, svg);
+  const ticks = niceTicks(y0, y1, 5);
+  for (const t of ticks) {
+    el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t), stroke: t === 0 && y0 < 0 ? "var(--axis)" : "var(--grid)", "stroke-width": 1 }, g);
+    const tx = el("text", { x: m.l - 6, y: Y(t) + 4, "text-anchor": "end", "font-size": 11, fill: "var(--text-muted)" }, g);
+    tx.textContent = (opts.yFmt || ((v) => v))(t);
+  }
+  const months = monthTicks(data[0].day, data[data.length - 1].day, Math.max(2, Math.floor((W - 60) / 90)));
+  for (const d of months) {
+    const tx = el("text", { x: X(d), y: H - 8, "text-anchor": "middle", "font-size": 11, fill: "var(--text-muted)" }, g);
+    tx.textContent = d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" });
+  }
+  return { svg, X, Y, W, H, m };
+}
+function niceTicks(a, b, n) {
+  const step = Math.pow(10, Math.floor(Math.log10((b - a) / n))); const err = (b - a) / n / step;
+  const s = step * (err >= 7.5 ? 10 : err >= 3.5 ? 5 : err >= 1.5 ? 2 : 1); const out = [];
+  for (let v = Math.ceil(a / s) * s; v <= b + 1e-9; v += s) out.push(+v.toFixed(10)); return out;
+}
+function monthTicks(a, b, max) {
+  const out = []; const d = new Date(a.getFullYear(), a.getMonth() + 1, 1);
+  while (d <= b) { out.push(new Date(d)); d.setMonth(d.getMonth() + 1); }
+  const k = Math.ceil(out.length / max); return out.filter((_, i) => i % k === 0);
+}
+function path(pts) { let s = ""; let pen = false; for (const [x, y] of pts) { if (!isFinite(y)) { pen = false; continue; } s += (pen ? "L" : "M") + x.toFixed(1) + "," + y.toFixed(1); pen = true; } return s; }
+
+function hover(host, f, data, rows) {
+  const tip = document.createElement("div"); tip.className = "tip"; host.appendChild(tip);
+  const line = el("line", { y1: f.m.t, y2: f.H - f.m.b, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" }, f.svg);
+  const hit = el("rect", { x: f.m.l, y: 0, width: f.W - f.m.l - f.m.r, height: f.H, fill: "transparent" }, f.svg);
+  const move = (ev) => {
+    const r = f.svg.getBoundingClientRect(); const px = (ev.clientX - r.left) * (f.W / r.width);
+    let best = 0, bd = Infinity; data.forEach((d, i) => { const dd = Math.abs(f.X(d.day) - px); if (dd < bd) { bd = dd; best = i; } });
+    const d = data[best]; const x = f.X(d.day);
+    line.setAttribute("x1", x); line.setAttribute("x2", x); line.setAttribute("visibility", "visible");
+    tip.textContent = ""; const h = document.createElement("div"); h.style.marginBottom = "4px"; h.textContent = fmtDate(d.day) + (d.pending ? " (pending)" : ""); tip.appendChild(h);
+    for (const [label, val] of rows(d)) { const row = document.createElement("div"); row.className = "row"; const a = document.createElement("span"); a.textContent = label; const b = document.createElement("b"); b.textContent = val; row.append(a, b); tip.appendChild(row); }
+    tip.style.display = "block";
+    const left = (x / f.W) * r.width; tip.style.left = Math.min(Math.max(0, left + 12), r.width - tip.offsetWidth) + "px"; tip.style.top = "8px";
+  };
+  hit.addEventListener("pointermove", move); hit.addEventListener("pointerleave", () => { tip.style.display = "none"; line.setAttribute("visibility", "hidden"); });
+}
+
+// ---------- charts ----------
+function bandChart(data) {
+  const host = $("c-band"); const m = Math.max(...data.map(d => Math.max(d.pred, Math.abs(d.ret) || 0))) * 1.08;
+  const f = frame(host, data, [-m, m], { h: 280, yFmt: (v) => v + "%", label: "Forecast ±sigma band and actual daily returns" });
+  const up = data.map(d => [f.X(d.day), f.Y(d.pred)]), dn = data.map(d => [f.X(d.day), f.Y(-d.pred)]).reverse();
+  el("path", { d: path(up) + "L" + path(dn).slice(1) + "Z", fill: "var(--series-1-band)", stroke: "none" }, f.svg);
+  el("path", { d: path(up), fill: "none", stroke: "var(--series-1)", "stroke-width": 1.5 }, f.svg);
+  el("path", { d: path(dn), fill: "none", stroke: "var(--series-1)", "stroke-width": 1.5 }, f.svg);
+  const r = Math.max(1.4, Math.min(4, 0.45 * (f.W - f.m.l - f.m.r) / data.length));   // dots shrink with density
+  for (const d of data) if (isFinite(d.ret)) {
+    const out = Math.abs(d.ret) > d.pred;
+    el("circle", { cx: f.X(d.day), cy: f.Y(d.ret), r: out ? r + .5 : r, fill: out ? "var(--serious)" : "var(--actual)", stroke: "var(--surface-1)", "stroke-width": 1 }, f.svg);
+  }
+  hover(host, f, data, (d) => [["Forecast ±σ", "±" + fmt(d.pred) + "%"], ["GARCH ±σ", "±" + fmt(d.garch) + "%"],
+    ["Actual return", isFinite(d.ret) ? fmt(d.ret) + "%" : "–"], ["Headlines (eve)", isFinite(d.news_n) ? d.news_n : "–"]]);
+}
+const roll = (a, k) => a.map((_, i) => { const w = a.slice(Math.max(0, i - k + 1), i + 1).filter(isFinite); return w.length ? w.reduce((s, v) => s + v, 0) / w.length : NaN; });
+function sigmaChart(data) {
+  const host = $("c-sigma"); const p = roll(data.map(d => d.pred), 5), g = roll(data.map(d => d.garch), 5), a = roll(data.map(d => d.actual), 5);
+  const hi = Math.max(...p, ...g, ...a.filter(isFinite)) * 1.1;
+  const f = frame(host, data, [0, hi], { h: 240, yFmt: (v) => v + "%", label: "Forecast and realised volatility" });
+  el("path", { d: path(data.map((d, i) => [f.X(d.day), f.Y(a[i])])), fill: "none", stroke: "var(--actual)", "stroke-width": 1.25, "stroke-opacity": .8 }, f.svg);
+  el("path", { d: path(data.map((d, i) => [f.X(d.day), f.Y(g[i])])), fill: "none", stroke: "var(--series-2)", "stroke-width": 2 }, f.svg);
+  el("path", { d: path(data.map((d, i) => [f.X(d.day), f.Y(p[i])])), fill: "none", stroke: "var(--series-1)", "stroke-width": 2 }, f.svg);
+  hover(host, f, data, (d) => { const i = data.indexOf(d); return [["GARCH + FinBERT", fmt(p[i]) + "%"], ["GARCH only", fmt(g[i]) + "%"], ["Realised", fmt(a[i]) + "%"]]; });
+}
+function priceChart(data) {
+  const host = $("c-price"); const c = data.map(d => d.close).filter(isFinite); const lo = Math.min(...c), hi = Math.max(...c), pad = (hi - lo) * .08;
+  const f = frame(host, data, [lo - pad, hi + pad], { h: 200, yFmt: (v) => v.toLocaleString("en-IN"), label: "TCS closing price" });
+  el("path", { d: path(data.map(d => [f.X(d.day), f.Y(d.close)])), fill: "none", stroke: "var(--text-primary)", "stroke-width": 1.75 }, f.svg);
+  hover(host, f, data, (d) => [["Close", isFinite(d.close) ? "₹" + d.close.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "–"], ["Return", fmt(d.ret) + "%"]]);
+}
+
+// ---------- tiles, news, metrics ----------
+function tile(k, v, n) { const t = document.createElement("div"); t.className = "tile"; for (const [c, s] of [["k", k], ["v", v], ["n", n]]) { const e = document.createElement("div"); e.className = c; e.textContent = s; t.appendChild(e); } return t; }
+
+function render(all, rangeDays) {
+  const done = all.filter(d => !d.pending); const data = rangeDays ? all.slice(-rangeDays - 1) : all;
+  bandChart(data); sigmaChart(data); priceChart(data.filter(d => isFinite(d.close)));
+  const w = done.slice(rangeDays ? -rangeDays : 0); const inside = w.filter(d => Math.abs(d.ret) <= d.pred).length;
+  $("tiles").lastChild && ($("tiles").lastChild.querySelector(".v").textContent = Math.round(100 * inside / w.length) + "%",
+                           $("tiles").lastChild.querySelector(".n").textContent = `of ${w.length} days inside ±σ (≈68% if well calibrated)`);
+}
+
+(async () => {
+  try {
+    const [csv, latest, summary, news] = await Promise.all([get("tracker.csv", "text"), get("latest.json"), get("summary.json"), get("headlines.json").catch(() => [])]);
+    const all = parseCSV(csv).map(r => ({ day: new Date(r.day + "T00:00:00"), pred: num(r.pred_vol), garch: num(r.garch_vol), actual: num(r.actual_vol),
+      ret: num(r.ret), close: num(r.close), news_n: num(r.news_n), pending: r.pending === "True" }));
+    const t = $("tiles");
+    t.appendChild(tile(`Forecast for ${fmtDate(new Date(latest.forecast_for + "T00:00:00"))}`, "±" + fmt(latest.sigma_pct) + "%", `GARCH alone: ±${fmt(latest.garch_sigma_pct)}%`));
+    t.appendChild(tile("Headlines last evening", String(latest.news_today), latest.news_today ? `mean sentiment ${fmt(latest.news_sent_today)}` : "no TCS news"));
+    const te = summary.metrics.test || summary.metrics.all;
+    t.appendChild(tile("Forecast error vs GARCH", (te.finbert_vs_garch_pct > 0 ? "+" : "") + te.finbert_vs_garch_pct + "%",
+      `QLIKE on ${te.n} out-of-sample days (lower is better), DM p = ${te.dm_p}`));
+    t.appendChild(tile("Days inside the range", "–", ""));
+    let range = 252; render(all, range);
+    for (const b of $("range").querySelectorAll("button")) b.addEventListener("click", () => {
+      for (const o of $("range").querySelectorAll("button")) o.setAttribute("aria-pressed", String(o === b)); range = +b.dataset.r; render(all, range); });
+    let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => render(all, range), 150); });
+
+    const ul = $("news");
+    if (!news.length) { const li = document.createElement("li"); li.textContent = "No TCS headlines in the last 30 days."; ul.appendChild(li); }
+    for (const h of news.slice(0, 25)) {
+      const li = document.createElement("li"); const d = document.createElement("span"); d.className = "muted"; d.textContent = h.date;
+      const s = document.createElement("span"); s.className = "s"; s.textContent = (h.s > 0 ? "+" : "") + fmt(h.s);
+      s.style.color = h.s > 0.2 ? "var(--good)" : h.s < -0.2 ? "var(--serious)" : "var(--text-secondary)";
+      s.title = h.s > 0.2 ? "positive" : h.s < -0.2 ? "negative" : "neutral";
+      const tcell = document.createElement("span"); const a = document.createElement("a"); a.textContent = h.title;
+      if (/^https?:\/\//.test(h.url || "")) { a.href = h.url; a.target = "_blank"; a.rel = "noopener noreferrer"; }
+      const src = document.createElement("span"); src.className = "muted src"; src.textContent = " · " + h.source; tcell.append(a, src);
+      li.append(d, s, tcell); ul.appendChild(li);
+    }
+
+    const tbl = document.createElement("table"); const hr = tbl.insertRow(); for (const h of ["Period", "Days", "GARCH", "+ HAR", "+ HAR + FinBERT", "vs GARCH", "DM p"]) { const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
+    for (const [k, v] of Object.entries(summary.metrics)) { const r = tbl.insertRow(); for (const c of [k, v.n, v.qlike.garch, v.qlike.har, v.qlike.finbert, v.finbert_vs_garch_pct + "%", v.dm_p]) r.insertCell().textContent = c; }
+    $("metrics").appendChild(tbl);
+    const p = document.createElement("p"); p.className = "muted";
+    p.textContent = "QLIKE = mean(RV/σ² − ln(RV/σ²) − 1), the standard loss for variance forecasts. Validation = Jul 2022–Dec 2023 (used for tuning); test = 2024 onward. DM = Diebold–Mariano test of the FinBERT model against GARCH alone.";
+    $("metrics").appendChild(p);
+    $("foot").textContent = `Updated ${new Date(summary.updated).toLocaleString("en-IN")} · ${summary.news_source}. Research project, not investment advice.`;
+  } catch (e) {
+    const p = document.createElement("p"); p.className = "err"; p.textContent = "Could not load data: " + e.message; document.querySelector("main").prepend(p);
+  }
+})();
+</script>
+</body>
+</html>

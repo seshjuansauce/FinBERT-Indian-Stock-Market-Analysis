@@ -1,0 +1,8 @@
+# Daily live job (Cloudflare container). CPU torch is installed separately in Dockerfile.live.
+pandas
+numpy
+scipy
+arch>=7.0
+transformers>=4.40
+yfinance
+requests

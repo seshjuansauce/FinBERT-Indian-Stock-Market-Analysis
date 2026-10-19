@@ -1,0 +1,16 @@
+# Daily GARCH–FinBERT job for the Cloudflare container (see cloudflare/README.md).
+# Build context = repo root; Dockerfile.live.dockerignore keeps the image to code + the one model it needs.
+FROM python:3.11-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 TOKENIZERS_PARALLELISM=false \
+    HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 OMP_NUM_THREADS=1 \
+    MODEL_DIR=/app/models/finbert-in-sentiment CALIBRATION=/app/results/sentiment/calibration.json
+WORKDIR /app
+COPY requirements-live.txt .
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu && pip install -r requirements-live.txt
+COPY finbert_vol/ finbert_vol/
+COPY model/build_features.py model/
+COPY news/entity.py news/
+COPY models/finbert-in-sentiment/ models/finbert-in-sentiment/
+COPY results/sentiment/calibration.json results/sentiment/
+EXPOSE 8080
+CMD ["python", "-m", "finbert_vol.live", "serve", "--port", "8080"]

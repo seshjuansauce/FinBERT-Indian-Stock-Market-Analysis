@@ -1,0 +1,9 @@
+# Only what Dockerfile.live copies
+*
+!requirements-live.txt
+!finbert_vol/**
+!model/build_features.py
+!news/entity.py
+!models/finbert-in-sentiment/**
+!results/sentiment/calibration.json
+**/__pycache__

@@ -109,7 +109,9 @@ def main():
         m = per["test"]; losses = pd.DataFrame({k: L[k][m] for k in F})
         mcs = MCS(losses, size=0.10, reps=a.boot, block_size=10, method="R", seed=0); mcs.compute()
         mcs_txt = f"Model Confidence Set (test, 90%): {sorted(mcs.included)}  ·  eliminated: {sorted(mcs.excluded)}"
-        pd.DataFrame({"model": mcs.pvalues.index, "mcs_p": mcs.pvalues.values}).to_csv(OUT / "mcs.csv", index=False)
+        pv = mcs.pvalues.iloc[:, 0] if isinstance(mcs.pvalues, pd.DataFrame) else mcs.pvalues
+        pv.rename("mcs_p").rename_axis("model").reset_index().to_csv(OUT / "mcs.csv", index=False)
+        mcs_txt += "  ·  p-values: " + ", ".join(f"{k.split()[0]} {v:.2f}" for k, v in pv.items())
     except Exception as e:  # noqa: BLE001
         mcs_txt = f"MCS skipped: {e}"
 

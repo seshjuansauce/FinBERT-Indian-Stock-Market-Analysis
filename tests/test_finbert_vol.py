@@ -314,3 +314,19 @@ def test_same_day_same_headline_filings_both_kept(tmp_path):
                        "bse_headline": ["Enclosed", "Enclosed"], "path": ["cert.pdf", "call.pdf"]})
     ax.to_parquet(tmp_path / "ax.parquet")
     assert fv.BSEAnnouncements(tmp_path / "ax.parquet").transcripts("INFY")["path"].tolist() == ["call.pdf"]
+
+
+# ---------------- volatility spillover network ----------------
+def test_connectedness_detects_the_transmitter():
+    from finbert_vol.spillover import Connectedness
+    rng = np.random.default_rng(0); n = 1500; e = rng.normal(size=(n, 3)); y = np.zeros((n, 3))
+    for t in range(1, n):                                   # A drives B and C; B, C do not feed back
+        y[t, 0] = 0.5 * y[t - 1, 0] + e[t, 0]
+        y[t, 1] = 0.3 * y[t - 1, 1] + 0.6 * y[t - 1, 0] + e[t, 1]
+        y[t, 2] = 0.3 * y[t - 1, 2] + 0.4 * y[t - 1, 0] + e[t, 2]
+    c = Connectedness(horizon=10, lags=1); th = c.gfevd(pd.DataFrame(y, columns=list("ABC")))
+    assert np.allclose(th.sum(1), 1)
+    tb, total = c.table(th)
+    assert tb.loc["A", "NET"] > 0 > tb.loc["B", "NET"] and tb.loc["C", "NET"] < 0 and 0 < total < 100
+    e2 = c.pairwise_net(th).set_index(["source", "target"])
+    assert ("A", "B") in e2.index and ("A", "C") in e2.index

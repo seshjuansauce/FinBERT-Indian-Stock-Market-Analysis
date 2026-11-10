@@ -2,6 +2,9 @@
 
   python experiments/event_reaction.py            # needs data/events/filing_finbert.parquet + axiom filings + price features
 
+"Results days" = firm-days whose top filing is results-related: Financial Results, Outcome of Board Meeting (results),
+Investor Presentation or Earnings Call Transcript (axiom's "results" group); the subset table splits them.
+
 Unit of analysis: one firm-day with at least one BSE filing (6 companies: TCS, Infosys, Wipro, Cipla, Dr Reddy's, Sun Pharma).
 The day's filing with the highest-priority type represents it (results > management change > M&A > payout > analyst
 meet > press release > general > other > procedural), as in axiom/research/features.py.
@@ -56,7 +59,7 @@ def build(axiom: Path, feat: Path) -> pd.DataFrame:
     rows = []
     for (sym, d), g in f.groupby(["symbol", "date"]):
         g = g.sort_values(["pri", "ts"]); top = g.iloc[0]
-        rows.append({"symbol": sym, "date": d, "group": top["group"], "after_close": bool(top["after_close"]), "dow": int(top["dow"]),
+        rows.append({"symbol": sym, "date": d, "group": top["group"], "top_sub": top["bse_subcategory"], "after_close": bool(top["after_close"]), "dow": int(top["dow"]),
                      "n_filings": len(g), "car_2": top["car_2"], "sig2": top["sig_car_2"], "sig_mkt": top["sig_mkt"], "ts": g["ts"].min(),
                      **{c: top[c] for c in FB},
                      "fb_absmax": g["fb_s"].abs().max()})                       # the most opinionated filing that day
@@ -106,7 +109,8 @@ SETS = {"B0": "", "B1 metadata": "meta", "B2 metadata+FinBERT": "meta fb", "B3 c
 def walk(e, target, kind, sets=SETS, fb_override=None):
     """Out-of-sample predictions for YEARS. kind: 'ols' (T1) or 'logit' (T2)."""
     from sklearn.linear_model import LogisticRegression
-    pred = {k: pd.Series(np.nan, index=e.index) for k in sets}; s2 = pd.Series(np.nan, index=e.index)
+    pred = {k: pd.Series(np.nan, index=e.index) for k in sets}
+    s2 = {k: pd.Series(np.nan, index=e.index) for k in sets}           # training-window residual variance (lognormal correction)
     ee = e if fb_override is None else fb_override
     for k, cols in sets.items():
         X = design(ee, cols)
@@ -114,15 +118,18 @@ def walk(e, target, kind, sets=SETS, fb_override=None):
             tr, te = (e["year"] < y) & e[target].notna(), (e["year"] == y)
             if te.sum() == 0 or tr.sum() < 50: continue
             if not cols:
-                m = e.loc[tr, target].mean(); pred[k][te] = 0.0 if kind == "ols" else m; continue
+                m = e.loc[tr, target].mean(); pred[k][te] = 0.0 if kind == "ols" else m
+                if kind == "ols": s2[k][te] = 0.0
+                continue
             Xtr, Xte = X[tr].values, X[te].values; mu, sd = Xtr.mean(0), Xtr.std(0); sd[sd == 0] = 1
             Ztr, Zte = (Xtr - mu) / sd, (Xte - mu) / sd
             if kind == "ols":
                 Z1 = np.column_stack([np.ones(len(Ztr)), Ztr]); b, *_ = np.linalg.lstsq(Z1, e.loc[tr, target].values, rcond=None)
                 pred[k][te] = np.column_stack([np.ones(len(Zte)), Zte]) @ b
-                if k == "B2 metadata+FinBERT": s2[te] = np.var(e.loc[tr, target].values - Z1 @ b)
+                s2[k][te] = np.var(e.loc[tr, target].values - Z1 @ b)
             else:
                 lr = LogisticRegression(C=0.5, max_iter=2000).fit(Ztr, e.loc[tr, target].values); pred[k][te] = lr.predict_proba(Zte)[:, 1]
+    walk.last_s2 = s2
     return pred
 
 
@@ -147,12 +154,17 @@ def main():
 
     # ---------- T1: GARCH miss on the reaction day ----------
     t1 = e[e["u_react"].notna()].reset_index(drop=True)
-    P = walk(t1, "u_react", "ols"); oos = t1["year"].isin(YEARS) & P["B2 metadata+FinBERT"].notna()
+    P = walk(t1, "u_react", "ols"); S2 = walk.last_s2; oos = t1["year"].isin(YEARS) & P["B2 metadata+FinBERT"].notna()
+    # per-announcement out-of-sample forecasts (for figures): implied reaction-day variance h·exp(û + s²/2) per model
+    pr = t1.loc[oos, ["symbol", "date", "react", "group", "top_sub", "after_close", "u_react", "rv_react", "h_react", "sar2", "fb_s", "fb_polar"]].copy()
+    for k in P:
+        pr[f"u_hat_{k.split()[0]}"] = P[k][oos]; pr[f"rv_hat_{k.split()[0]}"] = pr["h_react"] * np.exp(P[k][oos] + S2[k][oos] / 2)
+    pr.to_csv(OUT / "t1_predictions.csv", index=False)
     rows = []; y = t1.loc[oos, "u_react"]
     for k in P:
         err = (y - P[k][oos]) ** 2
         rv, h = t1.loc[oos, "rv_react"], t1.loc[oos, "h_react"]
-        F = h * np.exp(P[k][oos] + (np.var(y - P[k][oos]) / 2 if k != "B0" else 0))
+        F = h * np.exp(P[k][oos] + S2[k][oos] / 2)
         q = rv / F - np.log(rv / F) - 1
         rows.append({"model": k, "n": int(oos.sum()), "mse_u": err.mean(), "r2_oos_vs_B0": 1 - err.mean() / ((y - 0) ** 2).mean(), "qlike_RV": q.mean()})
     t1tab = pd.DataFrame(rows)
@@ -165,11 +177,16 @@ def main():
     sub_rows = []
     d_all = (t1["u_react"] - P["B2 metadata+FinBERT"]) ** 2 - (t1["u_react"] - P["B1 metadata"]) ** 2
     base_all = (t1["u_react"] - P["B1 metadata"]) ** 2
-    masks = {"all": oos, "results days": oos & (t1.group == "results"), "excluding results days": oos & (t1.group != "results"),
+    rel = t1.top_sub.isin(["Financial Results", "Outcome of Board Meeting"])
+    masks = {"all": oos, "results days": oos & (t1.group == "results"),
+             "· results release (Financial Results / Board outcome)": oos & (t1.group == "results") & rel,
+             "· earnings-call transcript": oos & (t1.top_sub == "Earnings Call Transcript"),
+             "· investor presentation": oos & (t1.top_sub == "Investor Presentation"),
+             "excluding results days": oos & (t1.group != "results"),
              "after-close filings": oos & t1.after_close, "intraday filings": oos & ~t1.after_close}
     masks.update({f"year {yy}": oos & (t1.year == yy) for yy in YEARS})
     for name, m in masks.items():
-        if m.sum() < 20: continue
+        if m.sum() < 15: continue
         l, h = cluster_ci(d_all[m], t1.loc[m, "react"], a.boot)
         sub_rows.append({"subset": name, "n": int(m.sum()), "B1_mse": base_all[m].mean(), "B2_mse": base_all[m].mean() + d_all[m].mean(),
                          "change_pct": 100 * d_all[m].mean() / base_all[m].mean(), "ci95_lo": l, "ci95_hi": h})

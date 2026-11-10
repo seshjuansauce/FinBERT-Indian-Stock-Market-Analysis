@@ -57,6 +57,36 @@ on target-aware Indian headlines — [`results/sentiment/summary.md`](results/se
 
 ---
 
+## Volatility network: how volatility spreads across Indian IT
+
+Diebold–Yilmaz connectedness (VAR on daily log realised variance, generalised FEVD, 10-day horizon) for TCS, Infosys,
+Wipro, HCLTech, Tech Mahindra, the **NIFTY IT** index and the NIFTY 50, Mar 2020 → Oct 2026 —
+[`results/network/spillover/summary.md`](results/network/spillover/summary.md) · code: [`finbert_vol/spillover.py`](finbert_vol/spillover.py),
+[`experiments/volatility_network.py`](experiments/volatility_network.py).
+
+<table><tr>
+<td><img src="docs/figures/fig5_spillover_network.png" alt="Volatility spillover network"></td>
+<td><img src="docs/figures/fig7_results_spillover.png" alt="Results-day spillover"></td>
+</tr></table>
+
+| Finding | Number |
+|---|---|
+| Total spillover: share of each node's 10-day volatility forecast-error variance that comes from the others | **69.6 %** (rolling range 58–75 %) |
+| Net transmitters (TO − FROM) | NIFTY IT **+24.6**, Infosys +2.3, TCS +1.5 |
+| Net receivers | Wipro −9.4, TechM −7.9, HCLTech −5.7, NIFTY 50 −5.4 |
+| **TCS results day → peers' volatility surprise** (vs their own GARCH, own-results days excluded) | Infosys ×1.9, Wipro ×1.8, HCLTech ×2.1, TechM ×1.6 (all \|t\| ≥ 2.7) |
+| Infosys results day → peers | Wipro ×2.0, HCLTech ×2.2, TechM ×2.5 (t ≥ 2.4); TCS ×1.3 (n.s.) |
+| Wipro results day → peers | no spillover except TechM ×1.7 |
+
+TCS opens the IT results season and its results move the whole sector's volatility beyond what each stock's own GARCH
+expects; Wipro's do not. NIFTY IT is the dominant transmitter, but it is built from these stocks (TCS and Infosys are
+about half of it), so read it as the common IT factor rather than an independent source.
+Rolling connectedness and net roles over time: [`fig6_rolling_spillover.png`](docs/figures/fig6_rolling_spillover.png).
+Limits: HCLTech and TechM's own results dates are not in the filings table, so their rows cannot exclude same-day
+own-results overlap; 15–23 results days per reporter.
+
+---
+
 ## Architecture
 
 ```mermaid

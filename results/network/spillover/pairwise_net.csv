@@ -1,0 +1,22 @@
+source,target,net_pct
+NIFTY IT,TechM,4.875
+NIFTY IT,Wipro,4.761
+NIFTY IT,HCLTech,4.443
+NIFTY IT,TCS,3.719
+NIFTY IT,Infosys,3.577
+NIFTY IT,NIFTY 50,3.19
+TCS,Wipro,2.256
+Infosys,Wipro,1.993
+Infosys,TechM,1.969
+Infosys,HCLTech,1.291
+TCS,HCLTech,1.02
+TCS,TechM,0.991
+Infosys,NIFTY 50,0.812
+TCS,NIFTY 50,0.765
+HCLTech,TechM,0.622
+TechM,NIFTY 50,0.357
+TechM,Wipro,0.243
+HCLTech,NIFTY 50,0.22
+HCLTech,Wipro,0.206
+TCS,Infosys,0.205
+Wipro,NIFTY 50,0.027

@@ -16,7 +16,8 @@ Targets
 
 Feature sets (all known at announcement time)
   B0  nothing (T1: GARCH alone; T2: base rate)
-  B1  metadata: filing type, after-close flag, company, ln σ̂ (firm's recent vol), market regime σ (EGARCH Nifty), # filings
+  B1  metadata: filing type, company, company × results-day, after-close flag, ln σ̂ (firm's recent vol), stock RV (1d, 5d),
+      market regime σ (EGARCH Nifty), # filings
   B2  B1 + FinBERT-IN on the filing text: s = P(pos) − P(neg), P(neg), P(pos), polarity 1 − P(neutral)
   B3  company + FinBERT only (can text stand in for the filing type?)
 
@@ -24,8 +25,10 @@ Protocol: expanding walk-forward by calendar year — fit on all events before 1
   T1: OLS → out-of-sample MSE / R²_oos, and QLIKE of the implied RV forecast h·exp(û + s²/2) vs GARCH alone.
   T2: L2-logistic → Brier, log loss, AUC; Brier skill vs base rate.
   Uncertainty: 95% bootstrap CI of the loss difference B2 − B1, resampling dates (clusters).
-  Placebo: FinBERT columns shuffled within (filing type × year) 200× — keeps how positive results announcements are on
-  average, breaks which announcement said what. p = share of placebos doing at least as well as real text.
+  Placebos (each 200×; p = share of shuffles doing at least as well as the real text):
+    P1 FinBERT columns shuffled within filing type × year  — keeps how upbeat each kind of filing is that year
+    P2 FinBERT columns shuffled within filing type × company — same company, same event type, a different quarter's text
+       (the strictest: rules out "the model just recognises which company is reporting")
 """
 from __future__ import annotations
 import argparse
@@ -88,6 +91,8 @@ def design(e: pd.DataFrame, cols: str) -> pd.DataFrame:
         X = X.join(pd.get_dummies(e["group"], prefix="g", dtype=float)).join(pd.get_dummies(e["symbol"], prefix="c", dtype=float))
         X["after_close"] = e["after_close"].astype(float); X["ln_sig2"] = np.log(e["sig2"]); X["sig_mkt"] = e["sig_mkt"]
         X["ln_nfil"] = np.log(e["n_filings"]); X["lrv_d"] = e["lrv_d"]; X["lrv_w"] = e["lrv_w"]
+        for s in sorted(e["symbol"].unique()):        # company-specific results-day effect (some firms' results move more)
+            X[f"res_x_{s}"] = ((e["group"] == "results") & (e["symbol"] == s)).astype(float)
     if "company" in cols and "meta" not in cols: X = X.join(pd.get_dummies(e["symbol"], prefix="c", dtype=float))
     if "fb" in cols:
         for c in FB + ["fb_absmax"]: X[c] = e[c]
@@ -157,10 +162,23 @@ def main():
     res_rows = []
     for k in P:
         err = (sub["u_react"] - P[k][sub.index]) ** 2; res_rows.append({"model": k, "n": len(sub), "mse_u (results days)": err.mean()})
+    sub_rows = []
+    d_all = (t1["u_react"] - P["B2 metadata+FinBERT"]) ** 2 - (t1["u_react"] - P["B1 metadata"]) ** 2
+    base_all = (t1["u_react"] - P["B1 metadata"]) ** 2
+    masks = {"all": oos, "results days": oos & (t1.group == "results"), "excluding results days": oos & (t1.group != "results"),
+             "after-close filings": oos & t1.after_close, "intraday filings": oos & ~t1.after_close}
+    masks.update({f"year {yy}": oos & (t1.year == yy) for yy in YEARS})
+    for name, m in masks.items():
+        if m.sum() < 20: continue
+        l, h = cluster_ci(d_all[m], t1.loc[m, "react"], a.boot)
+        sub_rows.append({"subset": name, "n": int(m.sum()), "B1_mse": base_all[m].mean(), "B2_mse": base_all[m].mean() + d_all[m].mean(),
+                         "change_pct": 100 * d_all[m].mean() / base_all[m].mean(), "ci95_lo": l, "ci95_hi": h})
+    subs = pd.DataFrame(sub_rows); subs.to_csv(OUT / "t1_subsets.csv", index=False)
     md += ["## T1 · Reaction-day volatility beyond GARCH  (target u = ln RV_R − ln h_R; lower MSE / QLIKE is better)", "",
            t1tab.round(4).to_markdown(index=False), "",
            f"B2 − B1 (does FinBERT add to metadata?): ΔMSE = {d12.mean():+.4f}, 95% date-cluster CI [{lo:+.4f}, {hi:+.4f}]", "",
-           "Results days only:", "", pd.DataFrame(res_rows).round(4).to_markdown(index=False), ""]
+           "Results days only:", "", pd.DataFrame(res_rows).round(4).to_markdown(index=False), "",
+           "FinBERT's contribution (B2 vs B1) by subset, with 95% date-cluster CIs:", "", subs.round(4).to_markdown(index=False), ""]
 
     # ---------- T2: abnormally large 2-day move ----------
     t2 = e[e["car2_valid"] & e["sar2"].notna() & e["sig2"].notna()].reset_index(drop=True)
@@ -177,22 +195,26 @@ def main():
            t2tab.round(4).to_markdown(index=False), "",
            f"B2 − B1 Brier: {b12.mean():+.5f}, 95% date-cluster CI [{lo2:+.5f}, {hi2:+.5f}]", ""]
 
-    # ---------- placebo: shuffle FinBERT within type × year ----------
+    # ---------- placebos ----------
     rng = np.random.default_rng(7); pl = []
     real1 = ((y - P["B2 metadata+FinBERT"][oos]) ** 2).mean(); real2 = ((yb - Q["B2 metadata+FinBERT"][oos2]) ** 2).mean()
-    for i in range(a.placebo):
-        def shuf(df):
-            d = df.copy()
-            for _, idx in d.groupby([d.group, d.year]).groups.items():
-                perm = rng.permutation(len(idx)); d.loc[idx, FB + ["fb_absmax"]] = d.loc[idx, FB + ["fb_absmax"]].values[perm]
-            return d
-        p1 = walk(t1, "u_react", "ols", {"B2 metadata+FinBERT": SETS["B2 metadata+FinBERT"]}, shuf(t1))["B2 metadata+FinBERT"]
-        p2 = walk(t2, "big", "logit", {"B2 metadata+FinBERT": SETS["B2 metadata+FinBERT"]}, shuf(t2))["B2 metadata+FinBERT"]
-        pl.append({"t1_mse": ((y - p1[oos]) ** 2).mean(), "t2_brier": ((yb - p2[oos2]) ** 2).mean()})
+    one = {"B2 metadata+FinBERT": SETS["B2 metadata+FinBERT"]}
+    for scheme, keys in (("P1 type×year", ["group", "year"]), ("P2 type×company", ["group", "symbol"])):
+        for i in range(a.placebo):
+            def shuf(df):
+                d = df.copy()
+                for _, idx in d.groupby(keys).groups.items():
+                    d.loc[idx, FB + ["fb_absmax"]] = d.loc[idx, FB + ["fb_absmax"]].values[rng.permutation(len(idx))]
+                return d
+            p1 = walk(t1, "u_react", "ols", one, shuf(t1))["B2 metadata+FinBERT"]
+            p2 = walk(t2, "big", "logit", one, shuf(t2))["B2 metadata+FinBERT"]
+            pl.append({"scheme": scheme, "t1_mse": ((y - p1[oos]) ** 2).mean(), "t2_brier": ((yb - p2[oos2]) ** 2).mean()})
     pl = pd.DataFrame(pl); pl.to_csv(OUT / "placebo.csv", index=False)
-    md += [f"## Placebo ({a.placebo} within type×year shuffles of the FinBERT features)", "",
-           f"- T1: real MSE {real1:.4f}; placebo mean {pl.t1_mse.mean():.4f}; share of placebos at least as good **{(pl.t1_mse <= real1).mean():.2f}**",
-           f"- T2: real Brier {real2:.5f}; placebo mean {pl.t2_brier.mean():.5f}; share of placebos at least as good **{(pl.t2_brier <= real2).mean():.2f}**", ""]
+    md += [f"## Placebos ({a.placebo} shuffles each of the FinBERT features)", ""]
+    for scheme, g in pl.groupby("scheme"):
+        md += [f"- {scheme} · T1: real MSE {real1:.4f}, placebo mean {g.t1_mse.mean():.4f}, share at least as good **{(g.t1_mse <= real1).mean():.3f}**"
+               f" · T2: real Brier {real2:.5f}, placebo mean {g.t2_brier.mean():.5f}, share **{(g.t2_brier <= real2).mean():.3f}**"]
+    md += [""]
 
     # ---------- direction (secondary): does tone predict the sign? ----------
     v = t2[t2.year.isin(YEARS)]

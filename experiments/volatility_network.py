@@ -64,9 +64,13 @@ def part_b(md: list):
             d = pd.read_csv(p, parse_dates=["date"]).set_index("date"); s = d["u_gjr"].copy(); s.index = d.index.map(lambda t: t)  # row t → RV_{t+1}
             nxt = pd.Series(list(d.index[1:]) + [pd.NaT], index=d.index); px[k] = pd.Series(s.values, index=nxt.values).dropna()  # keyed by the day RV realised
     rows = []
+    any_res = set().union(*react.values())                   # every known results reaction day (TCS, Infosys, Wipro)
     for j, days in react.items():                            # reporter
         for i, u in px.items():                              # affected company
-            u = u[u.index >= "2022-01-01"]; on = u.index.isin(list(days)); x, z = u[on], u[~on]
+            u = u[u.index >= "2022-01-01"]
+            own = react.get(i, set()) if i != j else set()   # drop the affected firm's OWN results days (same-day reporting)
+            on = u.index.isin(list(days - own)); base = ~u.index.isin(list(any_res))   # baseline: no known IT results that day
+            x, z = u[on], u[base]
             if on.sum() < 5: continue
             diff = x.mean() - z.mean(); se = np.sqrt(x.var(ddof=1) / len(x) + z.var(ddof=1) / len(z))
             rows.append({"reporter": j, "affected": i, "own": i == j, "n_days": int(on.sum()), "mean_u_on": x.mean(), "mean_u_other": z.mean(),
@@ -74,7 +78,9 @@ def part_b(md: list):
     rb = pd.DataFrame(rows); rb.to_csv(OUT / "results_day_spillover.csv", index=False)
     piv = rb.pivot(index="affected", columns="reporter", values="excess_u").round(2)
     md += ["## B · Results-day spillover (does a peer's results day surprise my GARCH?)", "",
-           "excess u = mean (ln RV − ln h_GARCH) on the reporter's results reaction days minus all other days, 2022 →. "
+           "excess u = mean (ln RV − ln h_GARCH) on the reporter's results reaction days (excluding the affected firm's own results days) "
+           "minus days with no known IT results, 2022 →. HCLTech and TechM own results dates are not in the filings table, so their "
+           "column cannot exclude own-results overlap. "
            "exp(excess u) ≈ how many times larger realised variance was than the stock's own GARCH expected, relative to normal days.", "",
            "Rows = affected stock, columns = company reporting results:", "", piv.to_markdown(), "",
            rb.round(3).to_markdown(index=False), ""]
@@ -138,7 +144,7 @@ def figures(th, tb, total, pw, roll_tot, roll_net, rb, y):
         ax.grid(False); ax.set_xlabel("results reaction day of …"); ax.set_ylabel("volatility surprise of …")
         ax.set_title("Results-day spillover: GARCH surprise when a peer reports")
         fig.text(0.0, -0.04, "Cell: mean (ln RV − ln h_GARCH) on the reporter's results reaction days minus other days, 2022 →; ×k = realised "
-                             "variance k times its usual ratio to GARCH. Bold: |t| ≥ 2.", fontsize=8.3, color=MUTED, wrap=True)
+                             "variance k times its usual ratio to GARCH. Own-results days of the affected firm excluded (TCS/Infosys/Wipro). Bold: |t| ≥ 2.", fontsize=8.3, color=MUTED, wrap=True)
         fig.savefig(FIG / "fig7_results_spillover.png"); plt.close(fig)
 
 

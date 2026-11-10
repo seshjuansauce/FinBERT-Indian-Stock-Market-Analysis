@@ -1,0 +1,7 @@
+model,mcs_p
+M4a +volume +ProsusAI FinBERT,0.7354
+M4 +volume +FinBERT-IN,0.7354
+M3 +FinBERT-IN sentiment (no volume),0.7354
+M1 +HAR+market,0.7354
+M0 GJR-GARCH,0.7354
+M2 +news volume,1.0

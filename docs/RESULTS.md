@@ -82,6 +82,42 @@ P2 rules out the main alternative explanation: that FinBERT merely identifies *w
 - *Domain adaptation for forecasting*: FinBERT-IN and off-the-shelf FinBERT give the same daily forecasts (p = 0.96), although
   FinBERT-IN classifies sentiment better (macro-F1 0.839 vs 0.757, provisional test labels).
 
+## 3.4 · What exactly is being measured — event effect vs content effect
+
+On a results day two different things raise volatility. The design separates them:
+
+| Layer | What it captures | Error, results-related days | Change |
+|---|---|---|---|
+| GARCH | volatility expected from price history alone | 1.857 | — |
+| + metadata = **event effect** | "an announcement of this type, from this company, at this time, came out" | 1.493 | −20 % |
+| + FinBERT = **content effect** | "what *this* announcement says" | 1.291 | **−13.5 %** further |
+
+The question is therefore not *does an announcement raise volatility?* (it does; the metadata layer absorbs that) but
+*given that an announcement came out, does its text tell us how large the reaction will be?* The 13.5 % is the content
+effect: the share of GARCH's reaction-day miss that the announcement's text predicts beyond the event itself.
+
+Precise scope of the claim:
+
+| Loose wording | What was actually done |
+|---|---|
+| "how much the stock moves" | how far reaction-day **volatility** (overnight gap² + Parkinson range) exceeds the GARCH forecast made the evening before — the *surprise* in volatility, not the raw move |
+| "on results day" | the reaction day of **results-related announcements**: results releases (61), board-meeting outcomes (24), earnings-call transcripts (66), investor presentations (18). Transcripts are filed 1–8 days after the results, so many of the 169 days are not the results day itself |
+| "sentiment of the earnings call" | FinBERT on the **filing headline + ~360-character summary**; for transcript filings this is a summary of the call, not the full transcript |
+
+Claim this repository supports:
+
+> For results-related BSE announcements (n = 169, out of sample 2023–2026), FinBERT scores of the announcement text
+> reduce the reaction-day volatility forecast error by 13.5 % (95 % CI −24.2 % to −1.8 %) beyond GARCH and all
+> metadata known at release time; the effect vanishes when the text is replaced by the same company's text from another
+> quarter (0 / 400 refits).
+
+**Open check — document type vs content.** Metadata treats the four results-related sub-types as one group. Since
+transcript summaries read differently from results releases, part of the FinBERT effect could reflect *which kind of
+document* it is rather than what it says; transcripts also arrive while post-results volatility is still decaying. The test:
+add sub-type dummies, days-since-last-results-release, and sub-type × company to the metadata baseline, and re-run the
+placebo within sub-type × company. If the effect survives, the content claim holds as stated; if it shrinks, the smaller
+number is the one to report. Not yet run.
+
 ## 4 · Interpretation
 
 Language carries information about *how much* uncertainty an event resolves, and it shows up where an event resolves a

@@ -43,6 +43,10 @@ full report: [`summary.md`](results/experiments/event_reaction/summary.md)
 | FinBERT adds | **nothing** — +1.3 % vs article counts (p = 0.26); 78 % of placebos do as well | **−13.5 %** on results-related announcements; 0/400 placebos do as well |
 | Report | [`finbert_vs_garch/summary.md`](results/experiments/finbert_vs_garch/summary.md) | [`event_reaction/summary.md`](results/experiments/event_reaction/summary.md) |
 
+**What the 13.5 % is.** On a results day, metadata captures the *event effect* (an announcement of this kind came out:
+error 1.857 → 1.493); FinBERT adds the *content effect* (what this announcement says: 1.493 → 1.291). Precise scope,
+claim wording and the one open robustness check: [`docs/RESULTS.md` §3.4](docs/RESULTS.md#34--what-exactly-is-being-measured--event-effect-vs-content-effect).
+
 Text tells you **how big** the reaction to real news will be — not which way (tone vs return: ρ = 0.01), and not on
 quiet days. This matches the finance literature (Loughran & McDonald 2011: tone predicts post-filing volatility far
 better than returns).

@@ -99,7 +99,7 @@ def figures(th, tb, total, pw, roll_tot, roll_net, rb, y):
     for r in pw.itertuples():
         if r.net_pct >= thr: G.add_edge(r.source, r.target, w=r.net_pct)
     pos = nx.circular_layout(sorted(G.nodes, key=lambda n: ["NIFTY 50", "NIFTY IT", "TCS", "Infosys", "Wipro", "HCLTech", "TechM"].index(n)))
-    fig, ax = plt.subplots(figsize=(7.6, 6.6)); ax.axis("off")
+    fig, ax = plt.subplots(figsize=(7.6, 7.2)); ax.axis("off"); ax.set_xlim(-1.55, 1.55); ax.set_ylim(-1.55, 1.5)
     wmax = max(d["w"] for *_, d in G.edges(data=True))
     for u, v, d in G.edges(data=True):
         ax.annotate("", xy=pos[v], xytext=pos[u], arrowprops=dict(arrowstyle="-|>", color=GREY, lw=0.6 + 5 * d["w"] / wmax, alpha=0.85,
@@ -107,11 +107,12 @@ def figures(th, tb, total, pw, roll_tot, roll_net, rb, y):
     for n in G.nodes:
         net = tb.loc[n, "NET"]; c = BLUE if net > 0 else ORANGE
         ax.scatter(*pos[n], s=900 + 40 * abs(net), color=c, edgecolor="white", linewidth=2, zorder=3)
-        ax.text(pos[n][0], pos[n][1] - 0.2, f"{n}\nnet {net:+.1f}", ha="center", va="top", fontsize=10, color=INK, zorder=4)
+        x0, y0 = pos[n]; r = float(np.hypot(x0, y0)) or 1.0; lx, ly = x0 / r * 1.3, y0 / r * 1.3     # label outside the ring
+        ax.text(lx, ly, f"{n}\nnet {net:+.1f}", ha="center", va="center", fontsize=10, color=INK, zorder=4)
     ax.set_title(f"Who transmits volatility to whom (total spillover {total:.0f} %)", fontsize=12.5, fontweight="bold", loc="left", color=INK)
     ax.scatter([], [], s=120, color=BLUE, label="net transmitter"); ax.scatter([], [], s=120, color=ORANGE, label="net receiver")
     ax.legend(frameon=False, loc="lower left", fontsize=9.5)
-    fig.text(0.02, 0.0, "Arrows: net pairwise spillover (Diebold–Yilmaz, generalised FEVD, 10-day horizon) of daily log realised variance; "
+    fig.text(0.02, -0.02, "Arrows: net pairwise spillover (Diebold–Yilmaz, generalised FEVD, 10-day horizon) of daily log realised variance; "
                         "width ∝ strength; weakest 40 % of pairs hidden. Node size ∝ |net|.", fontsize=8.5, color=MUTED, wrap=True)
     fig.savefig(FIG / "fig5_spillover_network.png"); plt.close(fig)
     # ---- fig6: rolling total + NIFTY IT / TCS net (two panels, one axis each)
@@ -121,8 +122,7 @@ def figures(th, tb, total, pw, roll_tot, roll_net, rb, y):
     for n, c in (("NIFTY IT", BLUE), ("TCS", ORANGE), ("NIFTY 50", GREY)):
         a2.plot(roll_net.index, roll_net[n], color=c, lw=1.8, label=n)
         a2.text(roll_net.index[-1], roll_net[n].iloc[-1], f"  {n}", color=c, va="center", fontsize=9.5)
-    a2.axhline(0, color=INK2, lw=0.8); a2.set_ylabel("net spillover (TO − FROM, %)"); a2.grid(color=GRID)
-    a2.text(roll_net.index[0], a2.get_ylim()[1] * 0.92, "above 0 = transmitting", color=MUTED, fontsize=8.5, va="top")
+    a2.axhline(0, color=INK2, lw=0.8); a2.set_ylabel("net spillover, %\n(> 0 transmits, < 0 receives)"); a2.grid(color=GRID)
     fig.text(0.0, -0.01, "Each point = connectedness estimated on the previous 250 trading days.", fontsize=8.5, color=MUTED)
     fig.tight_layout(); fig.savefig(FIG / "fig6_rolling_spillover.png"); plt.close(fig)
     # ---- fig7: results-day spillover heatmap
@@ -143,7 +143,7 @@ def figures(th, tb, total, pw, roll_tot, roll_net, rb, y):
         ax.set_xticks(range(len(cols)), [f"{c} reports" for c in cols]); ax.set_yticks(range(len(rows)), rows)
         ax.grid(False); ax.set_xlabel("results reaction day of …"); ax.set_ylabel("volatility surprise of …")
         ax.set_title("Results-day spillover: GARCH surprise when a peer reports")
-        fig.text(0.0, -0.04, "Cell: mean (ln RV − ln h_GARCH) on the reporter's results reaction days minus other days, 2022 →; ×k = realised "
+        fig.text(0.0, -0.12, "Cell: mean (ln RV − ln h_GARCH) on the reporter's results reaction days minus other days, 2022 →; ×k = realised "
                              "variance k times its usual ratio to GARCH. Own-results days of the affected firm excluded (TCS/Infosys/Wipro). Bold: |t| ≥ 2.", fontsize=8.3, color=MUTED, wrap=True)
         fig.savefig(FIG / "fig7_results_spillover.png"); plt.close(fig)
 

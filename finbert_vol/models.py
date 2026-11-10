@@ -45,6 +45,8 @@ class SentimentModel:
         self._device = torch.device(dev)
         self._tok = AutoTokenizer.from_pretrained(self.path)
         self._model = AutoModelForSequenceClassification.from_pretrained(self.path).to(self._device).eval()
+        if dev == "cpu": self._model = self._model.float()      # fp16 checkpoints are slow (and sometimes unsupported) on CPU
+        torch.set_num_threads(max(1, torch.get_num_threads()))
         self.labels = [self._model.config.id2label[i].lower() for i in range(self._model.config.num_labels)]
 
     # ---------- input formatting ----------
